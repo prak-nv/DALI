@@ -31,6 +31,7 @@
 #include "dali/core/cuda_utils.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/tensor_layout.h"
+#include "dali/core/traits.h"
 
 #ifdef DALI_BUILD_PROTO3
 #include "dali/operators/reader/parser/tf_feature.h"
@@ -124,8 +125,16 @@ enum DALIDataType : int {
   DALI_PYTHON_OBJECT     = 24,
   DALI_TENSOR_LAYOUT_VEC = 25,
   DALI_DATA_TYPE_VEC     = 26,
+  /* IMPORTANT: When adding new value please update enumerator_count<>
+                 specialization below!
+  */
   DALI_DATATYPE_END      = 1000
 };
+
+template <>
+struct enumerator_count<DALIDataType> :
+  std::integral_constant<std::size_t,
+                         std::size_t(DALIDataType::DALI_DATA_TYPE_VEC) + 1> {};
 
 inline const char *GetBuiltinTypeName(DALIDataType t) {
   switch (t) {
