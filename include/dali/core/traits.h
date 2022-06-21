@@ -22,6 +22,9 @@
 
 namespace dali {
 
+template <typename...>
+using void_t = void;
+
 template <typename T>
 struct is_vector : std::false_type {};
 
