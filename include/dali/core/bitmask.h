@@ -280,6 +280,55 @@ class bitmask {
     size_ += other.size_;
   }
 
+  friend bool bitmask_any(const bitmask& mask) {
+    for (auto v : mask.storage_) {
+      if (static_cast<bool>(v)) return true;
+    }
+    return false;
+  }
+
+  friend bool bitmask_none(const bitmask& mask) {
+    return !bitmask_any(mask);
+  }
+
+  friend bitmask bitmask_union(const bitmask& b1, const bitmask& b2) {
+    auto result = b1;
+    result.resize(std::max(b1.size(), b2.size()));
+    if (b2.empty()) return result;
+    for (ssize_t wi = word_idx(b2.size()-1); wi>=0; --wi) {
+      result.storage_[wi] |= b2.storage_[wi];
+    }
+    return result;
+  }
+
+  friend bitmask bitmask_intersection(const bitmask& b1, const bitmask& b2) {
+    auto result = b1;
+    auto minmax_sz = std::minmax(b1.ssize(), b2.ssize());
+    result.resize(minmax_sz.second);
+    // clear upper bits
+    result.fill(minmax_sz.first, minmax_sz.second, false);
+    if (minmax_sz.first == 0) return result;
+    for (ssize_t wi = word_idx(minmax_sz.first-1); wi >= 0; --wi) {
+      result.storage_[wi] &= b2.storage_[wi];
+    }
+    return result;
+  }
+
+  friend bool includes(const bitmask& b1, const bitmask& b2) {
+    if (b2.ssize() > b1.ssize() && b2.find(b1.ssize(), true) < b2.ssize()) {
+      return false;
+    }
+    auto min_sz = std::min(b1.ssize(), b2.ssize());
+    if (min_sz == 0) {
+      return true;
+    }
+    for (ssize_t wi = word_idx(min_sz-1); wi >= 0; --wi) {
+      if (b1.storage_[wi] & b2.storage_[wi] != b2.storage_[wi])
+        return false;
+    }
+    return true;
+  }
+
  private:
   // vector of bit storage words - the bits that are outside of the mask are 0
   SmallVector<bit_storage_t, 1> storage_;
