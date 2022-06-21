@@ -46,6 +46,21 @@ using remove_cv_t = std::remove_cv_t<T>;
 template <bool Value, typename Type = void>
 using enable_if_t = std::enable_if_t<Value, Type>;
 
+template <typename, typename = void>
+struct has_value_member final : std::false_type {};
+
+template <typename T>
+struct has_value_member<T, dali::void_t<decltype(T::value + 1)>> final :
+  std::true_type {};
+
+template <typename E>
+struct enumerator_count {};
+
+template <typename E>
+constexpr bool HasEnumeratorCount() {
+  static_assert(std::is_enum<E>{}, "Not an enumeration type!");
+  return has_value_member<enumerator_count<E>>{};
+}
 
 // check if the type has `resize` function callable with given arguments
 
