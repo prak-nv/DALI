@@ -1,0 +1,1 @@
+#include "dali/pipeline/data/type_mask.h"
