@@ -26,11 +26,11 @@
 
 #include "dali/core/common.h"
 #include "dali/core/copy_vector_helper.h"
+#include "dali/core/error_handling.h"
 #include "dali/core/format.h"
 #include "dali/core/traits.h"
-#include "dali/core/error_handling.h"
-#include "dali/pipeline/data/types.h"
 #include "dali/pipeline/operator/argument.h"
+#include "dali/pipeline/operator/op_type_domain.h"
 
 namespace dali {
 
@@ -225,6 +225,31 @@ graph even if its outputs are not used.)code", false);
     input_layouts_.resize(max);
     input_dox_.resize(max);
     input_devices_.resize(max);
+    return *this;
+  }
+
+  template <DALIDataType... Types>
+  DLL_PUBLIC inline OpSchema &AllowedInputTypes(int from, optional<int> to = dali::nullopt) {
+    int count = to.has_value() ? to.value() - from + 1 : 1;
+    DALI_ENFORCE(count >= 1);
+
+    if (!allowed_inputs_) {
+      DALI_ENFORCE(min_num_input_ >= 0 && max_num_input_ >= 0);
+      allowed_inputs_ = OpTypeDomain(OpTypeDomain::Input);
+      allowed_inputs_->setTensorCountLimits(min_num_input_, max_num_input_);
+    }
+
+    TensorNumberRange numbers{from, std::size_t(count)};
+    DALIDataTypeMask types;
+    types.add({Types...});
+    allowed_inputs_->SpecifyTypes(numbers, types);
+
+    return *this;
+  }
+
+  template <typename... Types>
+  DLL_PUBLIC inline OpSchema &AllowedInputTypes(int from, optional<int> to = dali::nullopt) {
+    this->template AllowedInputTypes<type2id<Types>::value...>(from, to);
     return *this;
   }
 
@@ -761,6 +786,10 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
     return min_num_input_;
   }
 
+  const optional<OpTypeDomain> &GetAllowedInputTypes() {
+    return allowed_inputs_;
+  }
+
   DLL_PUBLIC inline int NumOutput() const {
     return num_output_;
   }
@@ -1011,6 +1040,8 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
   std::vector<std::unique_ptr<Value> > internal_arguments_unq_;
   std::vector<std::vector<TensorLayout>> input_layouts_;
   std::vector<dali::InputDevice> input_devices_;
+
+  optional<OpTypeDomain> allowed_inputs_;
 
   std::map<std::string, TensorArgDesc> tensor_arguments_;
 };

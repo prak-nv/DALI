@@ -39,8 +39,13 @@ OpSchema& SchemaRegistry::RegisterSchema(const std::string &name) {
 const OpSchema& SchemaRegistry::GetSchema(const std::string &name) {
   auto &schema_map = registry();
   auto it = schema_map.find(name);
+
   DALI_ENFORCE(it != schema_map.end(), "Schema for operator '" +
       name + "' not registered");
+  auto &allowed_inputs = it->second.GetAllowedInputTypes();
+  if (allowed_inputs.has_value()) {
+    DALI_ENFORCE(allowed_inputs->IsFullySpecified());
+  }
   return it->second;
 }
 
