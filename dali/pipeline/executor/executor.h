@@ -96,14 +96,14 @@ class DLL_PUBLIC ExecutorBase {
  * @brief Execution parameters of the pipeline.
  */
 struct DLL_PUBLIC ExecutionParams {
-  int device_id;           /**< id of the GPU to operate on. */
-  int num_thread;          /**< the number of threads to use in the prefetch stage. */
-  int max_batch_size;      /**< the maximum size of the batch that can be produced. */
+  int device_id = -1;           /**< id of the GPU to operate on. */
+  int num_thread = -1;          /**< the number of threads to use in the prefetch stage. */
+  int max_batch_size = -1;      /**< the maximum size of the batch that can be produced. */
   int max_num_stream = -1; /**< set an upper limit on the number of cudaStreams that can be
                               allocated by the pipeline. */
   int default_cuda_stream_priority = 0; /**< CUDA stream priority used by DALI. See
                                            `cudaStreamCreateWithPriority` in CUDA documentation */
-  size_t bytes_per_sample_hint;         /**< Estimated size of each sample to be processed. */
+  size_t bytes_per_sample_hint = 0;         /**< Estimated size of each sample to be processed. */
   bool set_affinity =
       false; /**< indicates whether thread affinity should be configured in the thread pool */
 };

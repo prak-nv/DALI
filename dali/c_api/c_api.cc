@@ -185,10 +185,15 @@ void daliCreatePipeline(daliPipelineHandle *pipe_handle, const char *serialized_
                         int cpu_prefetch_queue_depth, int gpu_prefetch_queue_depth,
                         int enable_memory_stats) {
   bool se = separated_execution != 0;
+  dali::ExecutionParams params;
+  params.max_batch_size = max_batch_size;
+  params.num_thread = num_threads;
+  params.device_id = device_id;
+  dali::ExecutorConfig config = {true, true, !!separated_execution};
+
   auto pipeline =
-      std::make_unique<dali::Pipeline>(std::string(serialized_pipeline, length), max_batch_size,
-                                       num_threads, device_id, true, prefetch_queue_depth, true);
-  pipeline->SetExecutionTypes(true, se, true);
+      std::make_unique<dali::Pipeline>(std::string(serialized_pipeline, length), params, config, prefetch_queue_depth);
+  pipeline->SetExecutionTypes(config);
   if (se) {
     pipeline->SetQueueSizes(cpu_prefetch_queue_depth, gpu_prefetch_queue_depth);
   }
@@ -210,7 +215,7 @@ void daliCreatePipeline(daliPipelineHandle *pipe_handle, const char *serialized_
 
 void daliDeserializeDefault(daliPipelineHandle *pipe_handle, const char *serialized_pipeline,
                             int length) {
-  auto pipeline = std::make_unique<dali::Pipeline>(std::string(serialized_pipeline, length));
+  auto pipeline = std::make_unique<dali::Pipeline>(std::string(serialized_pipeline, length), dali::ExecutionParams{}, dali::ExecutorConfig{});
   pipeline->Build();
   dali::CUDAStreamLease stream;
   if (pipeline->device_id() >= 0) {
