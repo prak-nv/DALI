@@ -88,7 +88,12 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
   }
 
   ExternalSource<CPUBackend>* CreateCPUExe() {
-    exe_ = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
+    ExecutionParams params;
+    params.max_batch_size = this->batch_size_;
+    params.num_thread = this->num_threads_;
+    params.device_id = 0;
+    params.bytes_per_sample_hint = 1;
+    exe_ = this->GetExecutor(params);
     exe_->Init();
     BuildCPUGraph();
 
@@ -98,7 +103,12 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
   }
 
   ExternalSource<GPUBackend>* CreateGPUExe() {
-    exe_ = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
+    ExecutionParams params;
+    params.max_batch_size = this->batch_size_;
+    params.num_thread = this->num_threads_;
+    params.device_id = 0;
+    params.bytes_per_sample_hint = 1;
+    exe_ = this->GetExecutor(params);
     exe_->Init();
     this->BuildGPUGraph();
 

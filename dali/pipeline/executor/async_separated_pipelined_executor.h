@@ -32,17 +32,6 @@ namespace dali {
  */
 class DLL_PUBLIC AsyncSeparatedPipelinedExecutor : public SeparatedPipelinedExecutor {
  public:
-  DLL_PUBLIC inline AsyncSeparatedPipelinedExecutor(
-      int batch_size, int num_thread, int device_id, size_t bytes_per_sample_hint,
-      bool set_affinity = false, int max_num_stream = -1, int default_cuda_stream_priority = 0,
-      QueueSizes prefetch_queue_depth = QueueSizes{2, 2})
-      : SeparatedPipelinedExecutor(batch_size, num_thread, device_id, bytes_per_sample_hint,
-                                   set_affinity, max_num_stream, default_cuda_stream_priority,
-                                   prefetch_queue_depth),
-        cpu_thread_(device_id, set_affinity, "CPU executor"),
-        mixed_thread_(device_id, set_affinity, "Mixed executor"),
-        gpu_thread_(device_id, set_affinity, "GPU executor") {}
-
   DLL_PUBLIC inline AsyncSeparatedPipelinedExecutor(ExecutionParams params,
                                                     QueueSizes prefetch_queue_depth = QueueSizes{2,
                                                                                                  2})
