@@ -93,11 +93,11 @@ class DLL_PUBLIC Pipeline {
                              bool set_affinity = false, int max_num_stream = -1,
                              int default_cuda_stream_priority = 0)
       : built_(false), executor_config_({pipelined_execution, async_execution, false}) {
-    Init(max_batch_size, num_threads, device_id, seed, pipelined_execution, executor_config_.separated,
-         async_execution, bytes_per_sample_hint, set_affinity, max_num_stream,
-         default_cuda_stream_priority, QueueSizes{prefetch_queue_depth});
+    Init(max_batch_size, num_threads, device_id, seed, pipelined_execution,
+         executor_config_.separated, async_execution, bytes_per_sample_hint, set_affinity,
+         max_num_stream, default_cuda_stream_priority, QueueSizes{prefetch_queue_depth});
   }
- /**
+  /**
    * @brief Creates a pipeline that will produce batches of size `batch_size`,
    * using `num_threads` worker threads on gpu `device_id`.
    *
@@ -114,7 +114,7 @@ class DLL_PUBLIC Pipeline {
    * @param seed used for random number generation. Leaving the default value
    * @param prefetch_queue_depth sets the length of the executor internal pipeline
    * for this parameter results in random seed
-   * 
+   *
    */
   DLL_PUBLIC inline Pipeline(ExecutionParams params, ExecutorConfig config, int64_t seed = -1,
                              int prefetch_queue_depth = 2)
@@ -324,8 +324,9 @@ class DLL_PUBLIC Pipeline {
    * @sa dali::ExecutorConfig
    */
   DLL_PUBLIC void SetExecutionTypes(ExecutorConfig cfg) {
-    DALI_ENFORCE(!built_, "Alterations to the pipeline after "
-        "\"Build()\" has been called are not allowed - cannot change execution type.");
+    DALI_ENFORCE(!built_,
+                 "Alterations to the pipeline after "
+                 "\"Build()\" has been called are not allowed - cannot change execution type.");
     executor_config_ = cfg;
   }
 

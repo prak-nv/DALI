@@ -121,9 +121,10 @@ Pipeline::Pipeline(const string &serialized_pipe, int batch_size, int num_thread
                            "num_threads argument to a positive integer."));
   seed = seed == -1 ? def.seed() : seed;
 
-  Init(params_.max_batch_size, params_.num_thread, params_.device_id, seed, executor_config_.pipelined,
-       executor_config_.separated, executor_config_.async, bytes_per_sample_hint, set_affinity, max_num_stream,
-       default_cuda_stream_priority, QueueSizes{prefetch_queue_depth});
+  Init(params_.max_batch_size, params_.num_thread, params_.device_id, seed,
+       executor_config_.pipelined, executor_config_.separated, executor_config_.async,
+       bytes_per_sample_hint, set_affinity, max_num_stream, default_cuda_stream_priority,
+       QueueSizes{prefetch_queue_depth});
 
   // from serialized pipeline, construct new pipeline
   // All external inputs
@@ -145,12 +146,13 @@ Pipeline::Pipeline(const string &serialized_pipe, int batch_size, int num_thread
     }
 }
 
-Pipeline::Pipeline(const string& serialized_pipe, ExecutionParams params, ExecutorConfig config,
- int prefetch_queue_depth, int64_t seed) : built_(false), executor_config_(config) {
+Pipeline::Pipeline(const string &serialized_pipe, ExecutionParams params, ExecutorConfig config,
+                   int prefetch_queue_depth, int64_t seed)
+    : built_(false), executor_config_(config) {
   dali_proto::PipelineDef def;
   DALI_ENFORCE(DeserializePipeline(serialized_pipe, def), "Error parsing serialized pipeline.");
 
-    // If not given, take parameters from the serialized pipeline
+  // If not given, take parameters from the serialized pipeline
   params.max_batch_size = params.max_batch_size == -1 ? def.batch_size() : params.max_batch_size;
   DALI_ENFORCE(params.max_batch_size > 0,
                make_string("You are trying to create a pipeline with an incorrect batch size (",
@@ -163,7 +165,8 @@ Pipeline::Pipeline(const string& serialized_pipe, ExecutionParams params, Execut
                make_string("You are trying to create a pipeline with a negative device id (",
                            params.device_id, "). Please set a correct device_id."));
 
-  params.num_thread = params.num_thread == -1 ? static_cast<int>(def.num_threads()) : params.num_thread;
+  params.num_thread =
+      params.num_thread == -1 ? static_cast<int>(def.num_threads()) : params.num_thread;
   DALI_ENFORCE(params.num_thread > 0,
                make_string("You are trying to create a pipeline with an incorrect number "
                            "of worker threads (",
@@ -178,20 +181,20 @@ Pipeline::Pipeline(const string& serialized_pipe, ExecutionParams params, Execut
   // All external inputs
   for (auto &ex : def.external_inputs()) {
     this->AddExternalInput(ex);
-    }
-    // all operators
-    for (auto& op_def : def.op()) {
-      OpSpec spec;
-      dali::DeserializeOpSpec(op_def, &spec);
+  }
+  // all operators
+  for (auto &op_def : def.op()) {
+    OpSpec spec;
+    dali::DeserializeOpSpec(op_def, &spec);
 
-      this->AddOperator(spec, op_def.inst_name(),
-                        op_def.logical_id() == -1 ? GetNextLogicalId() : op_def.logical_id());
-    }
-    // output names
-    for (auto &output : def.pipe_outputs()) {
-      this->output_descs_.emplace_back(output.name(), output.device(),
-                                       static_cast<DALIDataType>(output.dtype()), output.ndim());
-    }
+    this->AddOperator(spec, op_def.inst_name(),
+                      op_def.logical_id() == -1 ? GetNextLogicalId() : op_def.logical_id());
+  }
+  // output names
+  for (auto &output : def.pipe_outputs()) {
+    this->output_descs_.emplace_back(output.name(), output.device(),
+                                     static_cast<DALIDataType>(output.dtype()), output.ndim());
+  }
 }
 
 Pipeline::~Pipeline() {
