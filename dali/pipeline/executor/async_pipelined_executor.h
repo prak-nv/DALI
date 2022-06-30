@@ -43,6 +43,14 @@ class DLL_PUBLIC AsyncPipelinedExecutor : public PipelinedExecutor {
         mixed_thread_(device_id, set_affinity, "Mixed executor"),
         gpu_thread_(device_id, set_affinity, "GPU executor") {}
 
+
+  DLL_PUBLIC inline AsyncPipelinedExecutor(ExecutionParams params,
+                                           QueueSizes prefetch_queue_depth = QueueSizes{2, 2})
+      : PipelinedExecutor(params, prefetch_queue_depth),
+        cpu_thread_(params.device_id, params.set_affinity, "CPU executor"),
+        mixed_thread_(params.device_id, params.set_affinity, "Mixed executor"),
+        gpu_thread_(params.device_id, params.set_affinity, "GPU executor") {}
+
   DLL_PUBLIC ~AsyncPipelinedExecutor() override {
     Shutdown();
   }

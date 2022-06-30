@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2022, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -47,6 +47,10 @@ class DLL_PUBLIC PipelinedExecutorImpl : public Executor<QueuePolicy> {
                                                bytes_per_sample_hint, set_affinity, max_num_stream,
                                                default_cuda_stream_priority, prefetch_queue_depth) {
   }
+
+  DLL_PUBLIC inline PipelinedExecutorImpl(ExecutionParams params,
+                                          QueueSizes prefetch_queue_depth = {2, 2})
+      : Executor<QueuePolicy>(params, prefetch_queue_depth) {}
 
   DLL_PUBLIC ~PipelinedExecutorImpl() override = default;
 

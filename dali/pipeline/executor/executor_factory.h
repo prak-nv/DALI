@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -43,6 +43,11 @@ std::unique_ptr<ExecutorBase> GetExecutor(bool pipelined, bool separated, bool a
   error << "No supported executor selected for pipelined = " << pipelined
         << ", separated = " << separated << ", async = " << async << std::endl;
   DALI_FAIL(error.str());
+}
+
+template <typename... Ts>
+std::unique_ptr<ExecutorBase> GetExecutor(ExecutorConfig config, Ts... args) {
+  return GetExecutor(config.pipelined, config.separated, config.async, std::forward<Ts>(args)...);
 }
 
 }  // namespace dali

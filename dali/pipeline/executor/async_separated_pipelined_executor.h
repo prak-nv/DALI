@@ -43,6 +43,14 @@ class DLL_PUBLIC AsyncSeparatedPipelinedExecutor : public SeparatedPipelinedExec
         mixed_thread_(device_id, set_affinity, "Mixed executor"),
         gpu_thread_(device_id, set_affinity, "GPU executor") {}
 
+  DLL_PUBLIC inline AsyncSeparatedPipelinedExecutor(ExecutionParams params,
+                                                    QueueSizes prefetch_queue_depth = QueueSizes{2,
+                                                                                                 2})
+      : SeparatedPipelinedExecutor(params, prefetch_queue_depth),
+        cpu_thread_(params.device_id, params.set_affinity, "CPU executor"),
+        mixed_thread_(params.device_id, params.set_affinity, "Mixed executor"),
+        gpu_thread_(params.device_id, params.set_affinity, "GPU executor") {}
+
   DLL_PUBLIC ~AsyncSeparatedPipelinedExecutor() override {
     Shutdown();
   }
