@@ -95,7 +95,7 @@ Pipeline::Pipeline(const string &serialized_pipe, int batch_size, int num_thread
                    bool pipelined_execution, int prefetch_queue_depth, bool async_execution,
                    size_t bytes_per_sample_hint, bool set_affinity, int max_num_stream,
                    int default_cuda_stream_priority, int64_t seed)
-    : built_(false), separated_execution_(false) {
+    : built_(false), executor_config_({pipelined_execution, async_execution, false}) {
   dali_proto::PipelineDef def;
   DALI_ENFORCE(DeserializePipeline(serialized_pipe, def), "Error parsing serialized pipeline.");
 
@@ -121,9 +121,58 @@ Pipeline::Pipeline(const string &serialized_pipe, int batch_size, int num_thread
                            "num_threads argument to a positive integer."));
   seed = seed == -1 ? def.seed() : seed;
 
-  Init(params_.max_batch_size, params_.num_thread, params_.device_id, seed, pipelined_execution,
-       separated_execution_, async_execution, bytes_per_sample_hint, set_affinity, max_num_stream,
+  Init(params_.max_batch_size, params_.num_thread, params_.device_id, seed, executor_config_.pipelined,
+       executor_config_.separated, executor_config_.async, bytes_per_sample_hint, set_affinity, max_num_stream,
        default_cuda_stream_priority, QueueSizes{prefetch_queue_depth});
+
+  // from serialized pipeline, construct new pipeline
+  // All external inputs
+  for (auto &ex : def.external_inputs()) {
+    this->AddExternalInput(ex);
+    }
+    // all operators
+    for (auto& op_def : def.op()) {
+      OpSpec spec;
+      dali::DeserializeOpSpec(op_def, &spec);
+
+      this->AddOperator(spec, op_def.inst_name(),
+                        op_def.logical_id() == -1 ? GetNextLogicalId() : op_def.logical_id());
+    }
+    // output names
+    for (auto &output : def.pipe_outputs()) {
+      this->output_descs_.emplace_back(output.name(), output.device(),
+                                       static_cast<DALIDataType>(output.dtype()), output.ndim());
+    }
+}
+
+Pipeline::Pipeline(const string& serialized_pipe, ExecutionParams params, ExecutorConfig config,
+ int prefetch_queue_depth, int64_t seed) : built_(false), executor_config_(config) {
+  dali_proto::PipelineDef def;
+  DALI_ENFORCE(DeserializePipeline(serialized_pipe, def), "Error parsing serialized pipeline.");
+
+    // If not given, take parameters from the serialized pipeline
+  params.max_batch_size = params.max_batch_size == -1 ? def.batch_size() : params.max_batch_size;
+  DALI_ENFORCE(params.max_batch_size > 0,
+               make_string("You are trying to create a pipeline with an incorrect batch size (",
+                           params.max_batch_size,
+                           "). Please set the batch_size argument "
+                           "to a positive integer."));
+
+  params.device_id = params.device_id == -1 ? def.device_id() : params.device_id;
+  DALI_ENFORCE(params.device_id >= 0 || params.device_id == CPU_ONLY_DEVICE_ID,
+               make_string("You are trying to create a pipeline with a negative device id (",
+                           params.device_id, "). Please set a correct device_id."));
+
+  params.num_thread = params.num_thread == -1 ? static_cast<int>(def.num_threads()) : params.num_thread;
+  DALI_ENFORCE(params.num_thread > 0,
+               make_string("You are trying to create a pipeline with an incorrect number "
+                           "of worker threads (",
+                           params.num_thread,
+                           "). Please set the "
+                           "num_threads argument to a positive integer."));
+  seed = seed == -1 ? def.seed() : seed;
+
+  Init(params, config, seed, QueueSizes{prefetch_queue_depth});
 
   // from serialized pipeline, construct new pipeline
   // All external inputs
@@ -188,9 +237,9 @@ void Pipeline::Init(int max_batch_size, int num_threads, int device_id, int64_t 
   this->prefetch_queue_depth_ = prefetch_queue_depth;
   DALI_ENFORCE(params_.max_batch_size > 0, "Max batch size must be greater than 0");
 
-  this->pipelined_execution_ = pipelined_execution;
-  this->separated_execution_ = separated_execution;
-  this->async_execution_ = async_execution;
+  executor_config_.pipelined = pipelined_execution;
+  executor_config_.separated = separated_execution;
+  executor_config_.async = async_execution;
 
   VerifyPriority(device_id, default_cuda_stream_priority);
 
@@ -201,10 +250,7 @@ void Pipeline::Init(ExecutionParams params, ExecutorConfig config, int64_t seed,
                     QueueSizes prefetch_queue_depth) {
   params_ = params;
   DALI_ENFORCE(params.max_batch_size > 0, "Max batch size must be greater than 0");
-
-  this->pipelined_execution_ = config.pipelined;
-  this->separated_execution_ = config.separated;
-  this->async_execution_ = config.async;
+  executor_config_ = config;
 
   VerifyPriority(params.device_id, params.default_cuda_stream_priority);
 
@@ -341,7 +387,7 @@ int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name
           "data node was provided (op: '", spec.name(), "', input: '", input_name, "')"));
     }
 
-    if (device == "gpu" && separated_execution_)
+    if (device == "gpu" && executor_config_.separated)
       SetupCPUInput(it, input_idx, &spec);
   }
 
@@ -462,10 +508,7 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
   DALI_ENFORCE(num_outputs > 0,
                make_string("User specified incorrect number of outputs (", num_outputs, ")."));
 
-  ExecutorConfig cfg;
-  cfg.separated = this->separated_execution_;
-  cfg.async = this->async_execution_;
-  cfg.pipelined = this->pipelined_execution_;
+  ExecutorConfig cfg = executor_config_;
   executor_ = GetExecutor(cfg, params_, prefetch_queue_depth_);
   executor_->EnableMemoryStats(enable_memory_stats_);
   executor_->Init();

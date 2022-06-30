@@ -92,15 +92,33 @@ class DLL_PUBLIC Pipeline {
                              bool async_execution = true, size_t bytes_per_sample_hint = 0,
                              bool set_affinity = false, int max_num_stream = -1,
                              int default_cuda_stream_priority = 0)
-      : built_(false), separated_execution_{false} {
-    Init(max_batch_size, num_threads, device_id, seed, pipelined_execution, separated_execution_,
+      : built_(false), executor_config_({pipelined_execution, async_execution, false}) {
+    Init(max_batch_size, num_threads, device_id, seed, pipelined_execution, executor_config_.separated,
          async_execution, bytes_per_sample_hint, set_affinity, max_num_stream,
          default_cuda_stream_priority, QueueSizes{prefetch_queue_depth});
   }
-
+ /**
+   * @brief Creates a pipeline that will produce batches of size `batch_size`,
+   * using `num_threads` worker threads on gpu `device_id`.
+   *
+   * GPU memory and pinned memory allocations cause implicit synchronization of
+   * the device, resulting in very slow startup times as dali buffer sizes
+   * stabilize. To avoid this slowdown, we optionally take in an estimated size
+   * of each image that will be processed in bytes. This hint is used to
+   * pre-size buffers, potentially avoiding slow startup if the hint is close
+   * to the true amount of memory that will be needed by the largest image to
+   * be processed.
+   *
+   * @param params execution parameters for the pipeline @sa dali::ExecutionParams
+   * @param config configuration for exectutor operation mode @sa dali::ExecutorConfig
+   * @param seed used for random number generation. Leaving the default value
+   * @param prefetch_queue_depth sets the length of the executor internal pipeline
+   * for this parameter results in random seed
+   * 
+   */
   DLL_PUBLIC inline Pipeline(ExecutionParams params, ExecutorConfig config, int64_t seed = -1,
                              int prefetch_queue_depth = 2)
-      : built_(false), separated_execution_(false) {
+      : built_(false), executor_config_(config) {
     Init(params, config, seed, QueueSizes{prefetch_queue_depth});
   }
 
@@ -111,7 +129,7 @@ class DLL_PUBLIC Pipeline {
                       int max_num_stream = -1, int default_cuda_stream_priority = 0,
                       int64_t seed = -1);
 
-  DLL_PUBLIC Pipeline(const string &serialized_pipe, ExecutionParams, ExecutorConfig,
+  DLL_PUBLIC Pipeline(const string &serialized_pipe, ExecutionParams params, ExecutorConfig config,
                       int prefetch_queue_depth = 2, int64_t seed = -1);
 
   DLL_PUBLIC ~Pipeline();
@@ -295,9 +313,20 @@ class DLL_PUBLIC Pipeline {
                                     bool separated_execution = false, bool async_execution = true) {
     DALI_ENFORCE(!built_, "Alterations to the pipeline after "
         "\"Build()\" has been called are not allowed - cannot change execution type.");
-    pipelined_execution_ = pipelined_execution;
-    separated_execution_ = separated_execution;
-    async_execution_ = async_execution;
+    executor_config_.pipelined = pipelined_execution;
+    executor_config_.separated = separated_execution;
+    executor_config_.async = async_execution;
+  }
+
+  /**
+   * @brief Set execution characteristics for this Pipeline
+   *
+   * @sa dali::ExecutorConfig
+   */
+  DLL_PUBLIC void SetExecutionTypes(ExecutorConfig cfg) {
+    DALI_ENFORCE(!built_, "Alterations to the pipeline after "
+        "\"Build()\" has been called are not allowed - cannot change execution type.");
+    executor_config_ = cfg;
   }
 
   /**
@@ -336,7 +365,7 @@ class DLL_PUBLIC Pipeline {
     DALI_ENFORCE(!built_,
                  "Alterations to the pipeline after "
                  "\"Build()\" has been called are not allowed - cannot set queue sizes.");
-    DALI_ENFORCE(separated_execution_ || (cpu_size == gpu_size),
+    DALI_ENFORCE(executor_config_.separated || (cpu_size == gpu_size),
                  "Setting different queue sizes for non-separated execution is not allowed");
     DALI_ENFORCE(cpu_size > 0 && gpu_size > 0, "Only positive queue sizes allowed");
     prefetch_queue_depth_ = QueueSizes(cpu_size, gpu_size);
@@ -582,21 +611,14 @@ class DLL_PUBLIC Pipeline {
    */
   bool ValidateOutputs(const DeviceWorkspace &ws) const;
 
-  const int MAX_SEEDS = 1024;
+  constexpr static int MAX_SEEDS = 1024;
 
   bool built_;
-  // int max_batch_size_, num_threads_, device_id_;
-  bool pipelined_execution_;
-  bool separated_execution_;
-  bool async_execution_;
-  // size_t bytes_per_sample_hint_;
-  // int set_affinity_;
-  // int max_num_stream_;
-  // int default_cuda_stream_priority_;
   int next_logical_id_ = 0;
   int next_internal_logical_id_ = -1;
   QueueSizes prefetch_queue_depth_;
   bool enable_memory_stats_ = false;
+  ExecutorConfig executor_config_;
   ExecutionParams params_;
 
   std::vector<int64_t> seed_;
