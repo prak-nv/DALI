@@ -95,7 +95,7 @@ class DLL_PUBLIC ExecutorBase {
 /**
  * @brief Execution parameters of the pipeline.
  */
-struct ExecutionParams {
+struct DLL_PUBLIC ExecutionParams {
   int device_id;           /**< id of the GPU to operate on. */
   int num_thread;          /**< the number of threads to use in the prefetch stage. */
   int max_batch_size;      /**< the maximum size of the batch that can be produced. */
@@ -111,7 +111,7 @@ struct ExecutionParams {
 /**
  * @brief Configuration for executor mode setup.
  */
-struct ExecutorConfig {
+struct DLL_PUBLIC ExecutorConfig {
   bool pipelined = true;  /**< whether to allocate the necessary buffers for pipeline execution
                            * between the cpu and gpu portions of the graph. See PipelinedExecutor. */
   bool async = true;      /**< whether to use extra host-threads to enable asynchronous execution
