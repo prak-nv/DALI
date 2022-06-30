@@ -48,6 +48,10 @@ class DLL_PUBLIC PipelinedExecutorImpl : public Executor<WorkspacePolicy, QueueP
                                                default_cuda_stream_priority, prefetch_queue_depth) {
   }
 
+  DLL_PUBLIC inline PipelinedExecutorImpl(ExecutionParams params,
+                                          QueueSizes prefetch_queue_depth = {2, 2})
+      : Executor<WorkspacePolicy, QueuePolicy>(params, prefetch_queue_depth) {}
+
   DLL_PUBLIC ~PipelinedExecutorImpl() override = default;
 
   DLL_PUBLIC void Build(OpGraph *graph, vector<string> output_names) override;

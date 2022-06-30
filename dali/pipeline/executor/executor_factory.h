@@ -45,6 +45,11 @@ std::unique_ptr<ExecutorBase> GetExecutor(bool pipelined, bool separated, bool a
   DALI_FAIL(error.str());
 }
 
+template <typename... Ts>
+std::unique_ptr<ExecutorBase> GetExecutor(ExecutorConfig config, Ts... args) {
+  return GetExecutor(config.pipelined, config.separated, config.async, std::forward<Ts>(args)...);
+}
+
 }  // namespace dali
 
 #endif  // DALI_PIPELINE_EXECUTOR_EXECUTOR_FACTORY_H_

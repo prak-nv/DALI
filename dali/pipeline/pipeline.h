@@ -98,12 +98,21 @@ class DLL_PUBLIC Pipeline {
          default_cuda_stream_priority, QueueSizes{prefetch_queue_depth});
   }
 
+  DLL_PUBLIC inline Pipeline(ExecutionParams params, ExecutorConfig config, int64_t seed = -1,
+                             int prefetch_queue_depth = 2)
+      : built_(false), separated_execution_(false) {
+    Init(params, config, seed, QueueSizes{prefetch_queue_depth});
+  }
+
   DLL_PUBLIC Pipeline(const string &serialized_pipe, int max_batch_size = -1, int num_threads = -1,
                       int device_id = -1, bool pipelined_execution = true,
                       int prefetch_queue_depth = 2, bool async_execution = true,
                       size_t bytes_per_sample_hint = 0, bool set_affinity = false,
                       int max_num_stream = -1, int default_cuda_stream_priority = 0,
                       int64_t seed = -1);
+
+  DLL_PUBLIC Pipeline(const string &serialized_pipe, ExecutionParams, ExecutorConfig,
+                      int prefetch_queue_depth = 2, int64_t seed = -1);
 
   DLL_PUBLIC ~Pipeline();
 
@@ -406,8 +415,12 @@ class DLL_PUBLIC Pipeline {
   /**
    * @brief Returns the maximum batch size that can be processed by the Pipeline
    */
-  DLL_PUBLIC inline int batch_size() const { return max_batch_size_; }
-  DLL_PUBLIC inline int max_batch_size() const { return max_batch_size_; }
+  DLL_PUBLIC inline int batch_size() const {
+    return params_.max_batch_size;
+  }
+  DLL_PUBLIC inline int max_batch_size() const {
+    return params_.max_batch_size;
+  }
   /// @}
 
   /**
@@ -438,13 +451,15 @@ class DLL_PUBLIC Pipeline {
   /**
    * @brief Returns the number of threads used by the pipeline.
    */
-  DLL_PUBLIC inline int num_threads() const { return num_threads_; }
+  DLL_PUBLIC inline int num_threads() const {
+    return params_.num_thread;
+  }
 
   /**
    * @brief Returns the GPU device number used by the pipeline
    */
   DLL_PUBLIC inline int device_id() const {
-    return device_id_;
+    return params_.device_id;
   }
 
   /**
@@ -511,6 +526,11 @@ class DLL_PUBLIC Pipeline {
             bool set_affinity, int max_num_stream, int default_cuda_stream_priority,
             QueueSizes prefetch_queue_depth = QueueSizes{2});
 
+  void Init(ExecutionParams, ExecutorConfig, int64_t seed,
+            QueueSizes prefetch_queue_depth = QueueSizes{2});
+
+  void InitSeed(int64_t seed);
+
   using EdgeMeta = struct {
     bool has_cpu, has_gpu, has_contiguous;
   };
@@ -565,18 +585,19 @@ class DLL_PUBLIC Pipeline {
   const int MAX_SEEDS = 1024;
 
   bool built_;
-  int max_batch_size_, num_threads_, device_id_;
+  // int max_batch_size_, num_threads_, device_id_;
   bool pipelined_execution_;
   bool separated_execution_;
   bool async_execution_;
-  size_t bytes_per_sample_hint_;
-  int set_affinity_;
-  int max_num_stream_;
-  int default_cuda_stream_priority_;
+  // size_t bytes_per_sample_hint_;
+  // int set_affinity_;
+  // int max_num_stream_;
+  // int default_cuda_stream_priority_;
   int next_logical_id_ = 0;
   int next_internal_logical_id_ = -1;
   QueueSizes prefetch_queue_depth_;
   bool enable_memory_stats_ = false;
+  ExecutionParams params_;
 
   std::vector<int64_t> seed_;
   int original_seed_;

@@ -92,6 +92,22 @@ class DLL_PUBLIC ExecutorBase {
   friend class ExecutorTest;
 };
 
+struct ExecutionParams {
+  int device_id;
+  int num_thread;
+  int max_batch_size;
+  int max_num_stream = -1;
+  int default_cuda_stream_priority = 0;
+  size_t bytes_per_sample_hint;
+  bool set_affinity = false;
+};
+
+struct ExecutorConfig {
+  bool pipelined = true;
+  bool async = true;
+  bool separated = false;
+};
+
 /**
  * @brief Basic executor for dali graphs. This executor enables
  * prefetching of results by maintaining two copies of output
@@ -118,6 +134,11 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
 
     stage_queue_depths_ = QueuePolicy::GetQueueSizes(prefetch_queue_depth);
   }
+
+  DLL_PUBLIC Executor(ExecutionParams params, QueueSizes prefetch_queue_depth = QueueSizes{2, 2})
+      : Executor(params.max_batch_size, params.num_thread, params.device_id,
+                 params.bytes_per_sample_hint, params.set_affinity, params.max_num_stream,
+                 params.default_cuda_stream_priority, prefetch_queue_depth) {}
 
   DLL_PUBLIC ~Executor() override;
 
