@@ -1651,10 +1651,16 @@ PYBIND11_MODULE(backend_impl, m) {
                 bool async_execution = true, size_t bytes_per_sample_hint = 0,
                 bool set_affinity = false, int max_num_stream = -1,
                 int default_cuda_stream_priority = 0) {
-              return std::make_unique<Pipeline>(
-                      batch_size, num_threads, device_id, seed, pipelined_execution,
-                      prefetch_queue_depth, async_execution, bytes_per_sample_hint, set_affinity,
-                      max_num_stream, default_cuda_stream_priority);
+                  ExecutionParams params;
+                  params.max_batch_size = batch_size;
+                  params.num_thread = num_threads;
+                  params.device_id = device_id;
+                  params.set_affinity = set_affinity;
+                  params.max_num_stream = max_num_stream,
+                  params.bytes_per_sample_hint = bytes_per_sample_hint = 0;
+                  params.default_cuda_stream_priority = default_cuda_stream_priority;
+                  ExecutorConfig cfg = {pipelined_execution, async_execution, false};
+              return std::make_unique<Pipeline>(params, cfg, seed, prefetch_queue_depth);
             }),
         "batch_size"_a,
         "num_threads"_a,
@@ -1676,11 +1682,16 @@ PYBIND11_MODULE(backend_impl, m) {
              bool async_execution = true, size_t bytes_per_sample_hint = 0,
              bool set_affinity = false, int max_num_stream = -1,
              int default_cuda_stream_priority = 0) {
-              return std::make_unique<Pipeline>(
-                               serialized_pipe,
-                               batch_size, num_threads, device_id, pipelined_execution,
-                               prefetch_queue_depth, async_execution, bytes_per_sample_hint,
-                               set_affinity, max_num_stream, default_cuda_stream_priority);
+                ExecutionParams params;
+                params.max_batch_size = batch_size;
+                params.num_thread = num_threads;
+                params.device_id = device_id;
+                params.set_affinity = set_affinity;
+                params.max_num_stream = max_num_stream,
+                params.bytes_per_sample_hint = bytes_per_sample_hint = 0;
+                params.default_cuda_stream_priority = default_cuda_stream_priority;
+                ExecutorConfig cfg = {pipelined_execution, async_execution, false};
+              return std::make_unique<Pipeline>(params, cfg, prefetch_queue_depth);
             }),
         "serialized_pipe"_a,
         "batch_size"_a = -1,
