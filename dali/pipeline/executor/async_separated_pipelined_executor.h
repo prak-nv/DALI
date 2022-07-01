@@ -68,7 +68,7 @@ class DLL_PUBLIC AsyncSeparatedPipelinedExecutor : public SeparatedPipelinedExec
       cpu_thread_.ForceStop();
       mixed_thread_.ForceStop();
       gpu_thread_.ForceStop();
-      std::string error = "Failed to init pipeline on device " + std::to_string(device_id_);
+      std::string error = "Failed to init pipeline on device " + std::to_string(params_.device_id);
       throw std::runtime_error(error);
     }
   }

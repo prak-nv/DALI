@@ -67,7 +67,8 @@ class DLL_PUBLIC PipelinedExecutorImpl : public Executor<WorkspacePolicy, QueueP
 
   std::vector<std::vector<TensorNodeId>> stage_outputs_;
 
-  using Executor<WorkspacePolicy, QueuePolicy>::device_id_;
+  using Executor<WorkspacePolicy, QueuePolicy>::params_;
+  // using Executor<WorkspacePolicy, QueuePolicy>::device_id_;
   using Executor<WorkspacePolicy, QueuePolicy>::stage_queue_depths_;
 };
 
@@ -79,7 +80,7 @@ void PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph,
 
 template <typename WorkspacePolicy, typename QueuePolicy>
 void PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::SetupOutputInfo(const OpGraph &graph) {
-  DeviceGuard g(device_id_);
+  DeviceGuard g(params_.device_id);
   Executor<WorkspacePolicy, QueuePolicy>::SetupOutputInfo(graph);
   constexpr auto stages_count = static_cast<int>(OpType::COUNT);
   stage_outputs_.resize(stages_count);

@@ -53,8 +53,8 @@ void Executor<WorkspacePolicy, QueuePolicy>::Shutdown() {
 
 template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::SyncDevice() {
-  if (device_id_ != CPU_ONLY_DEVICE_ID) {
-    DeviceGuard dg(device_id_);
+  if (params_.device_id != CPU_ONLY_DEVICE_ID) {
+    DeviceGuard dg(params_.device_id);
     if (mixed_op_stream_)
       CUDA_DTOR_CALL(cudaStreamSynchronize(mixed_op_stream_));
     if (gpu_op_stream_)
@@ -66,8 +66,8 @@ template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::RunCPUImpl() {
   PreRun();
 
-  if (device_id_ < 0) {
-    DALI_ENFORCE(device_id_ == CPU_ONLY_DEVICE_ID,
+  if (params_.device_id < 0) {
+    DALI_ENFORCE(params_.device_id == CPU_ONLY_DEVICE_ID,
                  "Wrong device_id provided, it should be >= 0, "
                  "or equal to CPU_ONLY_DEVICE_ID.");
     DALI_ENFORCE(graph_->NumOp(OpType::GPU) == 0 && graph_->NumOp(OpType::MIXED) == 0,
@@ -77,7 +77,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPUImpl() {
 
   DomainTimeRange tr("[DALI][Executor] RunCPU");
 
-  DeviceGuard g(device_id_);
+  DeviceGuard g(params_.device_id);
 
   auto cpu_idxs = QueuePolicy::AcquireIdxs(OpType::CPU);
   if (exec_error_ || QueuePolicy::IsStopSignaled() ||
@@ -117,7 +117,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunCPUImpl() {
 template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::RunMixedImpl() {
   DomainTimeRange tr("[DALI][Executor] RunMixed");
-  DeviceGuard g(device_id_);
+  DeviceGuard g(params_.device_id);
 
   auto mixed_idxs = QueuePolicy::AcquireIdxs(OpType::MIXED);
   if (exec_error_ || QueuePolicy::IsStopSignaled() ||
@@ -127,7 +127,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunMixedImpl() {
   }
 
   // short path for pure CPU pipeline
-  if (device_id_ == CPU_ONLY_DEVICE_ID) {
+  if (params_.device_id == CPU_ONLY_DEVICE_ID) {
     if (callback_) {
       callback_();
     }
@@ -197,12 +197,12 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPUImpl() {
   }
 
   // short path for pure CPU pipeline
-  if (device_id_ == CPU_ONLY_DEVICE_ID) {
+  if (params_.device_id == CPU_ONLY_DEVICE_ID) {
     // We do not release, but handle to used outputs
     QueuePolicy::QueueOutputIdxs(gpu_idxs, gpu_op_stream_);
     return;
   }
-  DeviceGuard g(device_id_);
+  DeviceGuard g(params_.device_id);
 
   // Enforce our assumed dependency between consecutive
   // iterations of a stage of the pipeline.
@@ -326,14 +326,14 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
 
   for (int i = 0; i < ws.NumInput(); i++) {
     DALI_ENFORCE(
-        ws.GetInputBatchSize(i) <= max_batch_size_,
+        ws.GetInputBatchSize(i) <= params_.max_batch_size,
         make_string("Expected batch size lower or equal to max batch size. Expected at most: ",
-                    max_batch_size_, ", got: ", ws.GetInputBatchSize(i)));
+                    params_.max_batch_size, ", got: ", ws.GetInputBatchSize(i)));
   }
   for (int i = 0; i < spec.NumOutput(); i++) {
-    DALI_ENFORCE(ws.GetRequestedBatchSize(i) <= max_batch_size_,
+    DALI_ENFORCE(ws.GetRequestedBatchSize(i) <= params_.max_batch_size,
                  make_string("Expected batch size lower or equal to max batch size. Actual: ",
-                             ws.GetRequestedBatchSize(i), " <= ", max_batch_size_));
+                             ws.GetRequestedBatchSize(i), " <= ", params_.max_batch_size));
   }
 
   for (int i = 0; i < spec.NumRegularInput(); i++) {
@@ -399,7 +399,7 @@ template <typename WorkspacePolicy, typename QueuePolicy>
 int Executor<WorkspacePolicy, QueuePolicy>::InferBatchSize(
     const std::vector<BatchSizeProvider *> &bsps) const {
   if (bsps.empty()) {
-    return max_batch_size_;
+    return params_.max_batch_size;
   }
   for (size_t i = 1; i < bsps.size(); i++) {
     DALI_ENFORCE(bsps[0]->NextBatchSize() == bsps[i]->NextBatchSize(),
