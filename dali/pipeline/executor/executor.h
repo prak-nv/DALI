@@ -119,6 +119,82 @@ struct DLL_PUBLIC ExecutorConfig {
   bool separated = false; /**< whether to use separated queues for pipeline execution */
 };
 
+template <typename T1, typename T2>
+using ref_pair = std::pair<decltype(std::ref(std::declval<T1>)), decltype(std::ref(std::declval<T2>()))>;
+
+using ProtectedStatsMap = ref_pair<ExecutorMetaMap, std::mutex>;
+
+struct Stage {
+  enum class Kind {
+    cpu,
+    gpu,
+    cpu2gpu,
+    gpu2cpu
+  };
+
+  static constexpr inline bool UsesGPU(Kind k) noexcept {
+    return k != Kind::cpu;
+  }
+
+  Stage(const Stage&) = delete;
+  Stage& operator=(const Stage&) = delete;
+
+  static inline bool classof(Stage* ) {
+    return true;
+  }
+
+  auto GetKind() noexcept {
+    return kind_;
+  }
+
+  bool UsesGPU() noexcept {
+    return UsesGPU(kind_);
+  }
+
+  virtual ~Stage() noexcept = 0;
+  
+  ProtectedStatsMap GetStatMapsRef() {
+    return std::make_pair(std::ref(stats_), std::ref(stats_mutex_));
+  }
+
+protected:
+  std::mutex stats_mutex_;
+  ExecutorMetaMap stats_;
+  
+  Stage(Kind kind) noexcept : kind_(kind) {}
+  Kind kind_;
+};
+
+struct GPUStageBase : public Stage {
+  GPUStageBase(Stage::Kind k : Stage(k)) noexcept {
+    DALI_ENFORCE(k != Kind::cpu);
+
+  }
+
+  EventList output_events_;
+  cudaEvent_t stage_event_;
+  CUDAStreamLease op_stream_;
+};
+
+struct GpuStage : public final GPUStageBase {
+  static inline bool classof(Stage* s) {
+    return kind_ == Stage::Kind::gpu;
+  }
+};
+
+struct CPU2GPUStage : public final GPUStageBase {
+  static inline bool classof(Stage* s) {
+    return kind_ == Stage::Kind::gpu;
+  }
+  MixedOpEventMap mixed_op_events_;
+};
+
+struct CpuStage : public final Stage {
+  static inline bool classof(Stage* s) {
+    return kind_ == Stage::Kind::cpu;
+  }
+};
+
 /**
  * @brief Basic executor for dali graphs. This executor enables
  * prefetching of results by maintaining two copies of output
@@ -204,6 +280,11 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
     } else {
       GetMaxSizesNonCont(in, max_out_size, max_reserved_size);
     }
+  }
+
+  template <typename W>
+  inline void FillStats(ProtectedExecutorMetaMap m, W &ws, std::string op_name) {
+    FillStats(m.first.get(), ws, std::move(op_name), m.second.get());
   }
 
   template <typename W>
@@ -770,6 +851,10 @@ void gpu_finished_callback(cudaStream_t stream, cudaError_t status, void *userDa
 void AppendToMap(ExecutorMetaMap &ret, ExecutorMetaMap &in_stats, std::mutex &mutex) {
   const std::lock_guard<std::mutex> lock(mutex);
   ret.insert(in_stats.begin(), in_stats.end());
+}
+
+void AppendToMap(ExectorMetaMap &ret, ProtectedStatsMap &in_stats) {
+  AppendToMap(ret, m.first.get(), m.second.get());
 }
 
 }  // namespace detail

@@ -28,6 +28,8 @@
 
 namespace dali {
 
+Stage::~Stage() noexcept = default;
+
 template <typename WorkspacePolicy, typename QueuePolicy>
 void Executor<WorkspacePolicy, QueuePolicy>::PreRun() {
   auto batch_size = InferBatchSize(batch_size_providers_);
