@@ -88,7 +88,12 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
   }
 
   ExternalSource<CPUBackend>* CreateCPUExe() {
-    exe_ = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
+    ExecutionParams params;
+    params.max_batch_size = this->batch_size_;
+    params.num_thread = this->num_threads_;
+    params.device_id = 0;
+    params.bytes_per_sample_hint = 1;
+    exe_ = this->GetExecutor(params);
     exe_->Init();
     BuildCPUGraph();
 
@@ -98,7 +103,12 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
   }
 
   ExternalSource<GPUBackend>* CreateGPUExe() {
-    exe_ = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
+    ExecutionParams params;
+    params.max_batch_size = this->batch_size_;
+    params.num_thread = this->num_threads_;
+    params.device_id = 0;
+    params.bytes_per_sample_hint = 1;
+    exe_ = this->GetExecutor(params);
     exe_->Init();
     this->BuildGPUGraph();
 
@@ -467,10 +477,12 @@ TYPED_TEST(ExternalSourceTest, ConsumeOneThenFeedsGPU) {
 
 TEST(ExternalSourceTestNoInput, ThrowCpu) {
   OpGraph graph;
-  int batch_size = 1;
-  int num_threads = 1;
-
-  auto exe = std::make_unique<SimpleExecutor>(batch_size, num_threads, 0, 1);
+  ExecutionParams params;
+  params.max_batch_size = 1;
+  params.num_thread = 1;
+  params.device_id = 0;
+  params.bytes_per_sample_hint = 1; 
+  auto exe = std::make_unique<SimpleExecutor>(params);
   exe->Init();
 
   graph.AddOp(
@@ -478,8 +490,8 @@ TEST(ExternalSourceTestNoInput, ThrowCpu) {
       .AddArg("device", "cpu")
       .AddArg("device_id", 0)
       .AddOutput("data_out", "cpu")
-      .AddArg("max_batch_size", batch_size)
-      .AddArg("num_threads", num_threads), "");
+      .AddArg("max_batch_size", params.max_batch_size)
+      .AddArg("num_threads", params.num_thread), "");
 
   vector<string> outputs = {"data_out_cpu"};
 
