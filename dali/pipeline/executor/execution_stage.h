@@ -83,6 +83,22 @@ struct Stage {
     return UsesGPU(kind_);
   }
 
+  const char *StageStatsPrefix() const noexcept {  // TODO: private
+    switch (kind_) {
+      case Kind::cpu:
+        return "CPU_";
+      case Kind::gpu:
+        return "GPU_";
+      case Kind::cpu2gpu:
+        return "MIXED_";
+      case Kind::gpu2cpu: {
+        assert(false && "Unimplemented");
+      }
+    }
+    return nullptr;
+  }
+
+
   virtual ~Stage() noexcept = 0;
 
   ProtectedStatsMap GetStatMapsRef() {
