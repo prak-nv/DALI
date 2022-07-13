@@ -28,8 +28,47 @@
 #include "dali/pipeline/graph/op_graph_storage.h"
 #include "dali/pipeline/util/event_pool.h"
 
+/// isa, cast, dyncast
 namespace dali {
 
+// Very simple implementation of llvm style class heirarchy
+template <typename To, typename From>
+bool isa(From *o) noexcept {
+  return std::is_base_of<To, From>::value || To::classof(o);
+}
+
+template <typename To, typename From>
+bool isa(From &o) noexcept {
+  return std::is_base_of<To, From>::value || To::classof(&o);
+}
+
+template <typename To, typename From>
+bool isa_or_null(From *o) {
+  return o != nullptr && isa<To>(o);
+}
+
+template <typename To, typename From>
+To *cast(From *o) {
+  assert(isa<To>(o));
+  return static_cast<To *>(o);
+}
+
+template <typename To, typename From>
+To *dyncast(From *o) {
+  return isa<To>(o) ? static_cast<To *>(o) : nullptr;
+}
+
+template <typename To, typename From>
+To *dyncast_or_null(From *o) {
+  if (o == nullptr) {
+    return nullptr;
+  }
+  return dyncast<To>(o);
+}
+
+}  // namespace dali
+
+namespace dali {
 
 struct DLL_PUBLIC ExecutorMeta {
   size_t real_size;
