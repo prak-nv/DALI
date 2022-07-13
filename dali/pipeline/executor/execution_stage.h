@@ -83,6 +83,47 @@ struct Stage {
     return UsesGPU(kind_);
   }
 
+  struct MaxSizeHelper {
+    template <typename T>
+    inline static void GetMaxSizesCont(T &in, size_t &max_out_size, size_t &max_reserved_size) {
+      auto out_size = in.nbytes();
+      auto reserved_size = in.capacity();
+      max_out_size = std::max<size_t>(std::ceil((out_size * 1.0) / in.num_samples()), max_out_size);
+      max_reserved_size =
+          std::max<size_t>(std::ceil((reserved_size * 1.0) / in.num_samples()), max_reserved_size);
+    }
+
+    template <typename T>
+    inline static void GetMaxSizesNonCont(T &in, size_t &max_out_size, size_t &max_reserved_size) {
+      const auto &nbytes = in._chunks_nbytes();
+      const auto &capacity = in._chunks_capacity();
+      max_out_size = 0;
+      max_reserved_size = 0;
+      for (auto &elem : nbytes) {
+        max_out_size = std::max(max_out_size, elem);
+      }
+      for (auto &elem : capacity) {
+        max_reserved_size = std::max(max_reserved_size, elem);
+      }
+    }
+
+    template <typename backend>
+    inline static void GetMaxSizes(TensorList<backend> &in, size_t &max_out_size,
+                                   size_t &max_reserved_size) {
+      GetMaxSizesCont(in, max_out_size, max_reserved_size);
+    }
+
+    template <typename backend>
+    inline static void GetMaxSizes(TensorVector<backend> &in, size_t &max_out_size,
+                                   size_t &max_reserved_size) {
+      if (in.IsContiguous()) {
+        GetMaxSizesCont(in, max_out_size, max_reserved_size);
+      } else {
+        GetMaxSizesNonCont(in, max_out_size, max_reserved_size);
+      }
+    }
+  };
+
   const char *StageStatsPrefix() const noexcept {  // TODO: private
     switch (kind_) {
       case Kind::cpu:
