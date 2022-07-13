@@ -46,22 +46,14 @@
 #include "dali/pipeline/workspace/workspace_data_factory.h"
 
 namespace dali {
-
-struct DLL_PUBLIC ExecutorMeta {
-  size_t real_size;
-  size_t max_real_size;
-  size_t reserved;
-  size_t max_reserved;
-};
-using ExecutorMetaMap = std::unordered_map<std::string, std::vector<ExecutorMeta>>;
-
 namespace detail {
 // This is stream callback used on GPU stream to indicate that GPU work for this
 // pipeline run is finished
 static void gpu_finished_callback(cudaStream_t stream, cudaError_t status, void *userData);
 
 // helper function to concatenate ExecutorMetaMap maps
-static void AppendToMap(ExecutorMetaMap &ret, ExecutorMetaMap &in_stats, std::mutex &mutex);
+static inline void AppendToMap(ExecutorMetaMap &ret, ExecutorMetaMap &in_stats, std::mutex &mutex);
+static inline void AppendToMap(ExecutorMetaMap &ret, ProtectedStatsMap in_stats);
 
 }  // namespace detail
 
@@ -204,6 +196,11 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
     } else {
       GetMaxSizesNonCont(in, max_out_size, max_reserved_size);
     }
+  }
+
+  template <typename W>
+  inline void FillStats(ProtectedStatsMap m, W &ws, std::string op_name) {
+    FillStats(m.first.get(), ws, std::move(op_name), m.second.get());
   }
 
   template <typename W>
@@ -769,6 +766,10 @@ void gpu_finished_callback(cudaStream_t stream, cudaError_t status, void *userDa
 void AppendToMap(ExecutorMetaMap &ret, ExecutorMetaMap &in_stats, std::mutex &mutex) {
   const std::lock_guard<std::mutex> lock(mutex);
   ret.insert(in_stats.begin(), in_stats.end());
+}
+
+void AppendToMap(ExecutorMetaMap &ret, ProtectedStatsMap in_stats) {
+  AppendToMap(ret, in_stats.first.get(), in_stats.second.get());
 }
 
 }  // namespace detail

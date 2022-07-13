@@ -30,6 +30,20 @@
 
 namespace dali {
 
+
+struct DLL_PUBLIC ExecutorMeta {
+  size_t real_size;
+  size_t max_real_size;
+  size_t reserved;
+  size_t max_reserved;
+};
+
+template <typename T1, typename T2>
+using ref_pair = std::pair<std::reference_wrapper<T1>, std::reference_wrapper<T2>>;
+
+using ExecutorMetaMap = std::unordered_map<std::string, std::vector<ExecutorMeta>>;
+using ProtectedStatsMap = ref_pair<ExecutorMetaMap, std::mutex>;
+
 struct Stage {
   enum class Kind {
     cpu,
