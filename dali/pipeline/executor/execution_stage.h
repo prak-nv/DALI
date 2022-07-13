@@ -30,6 +30,35 @@
 
 /// isa, cast, dyncast
 namespace dali {
+namespace detail {
+
+class EventList {
+ public:
+  inline EventList() = default;
+  inline EventList(int size, EventPool *event_pool) {
+    DALI_ENFORCE(event_pool != nullptr);
+    for (int i = 0; i < size; ++i) {
+      events_.push_back(event_pool->GetEvent());
+    }
+  }
+
+  inline cudaEvent_t GetEvent(int idx) {
+    return events_[idx];
+  }
+
+  inline bool empty() const {
+    return events_.empty();
+  }
+
+ private:
+  vector<cudaEvent_t> events_;
+};
+
+
+}  // namespace detail
+}  // namespace dali
+
+namespace dali {
 
 // Very simple implementation of llvm style class heirarchy
 template <typename To, typename From>

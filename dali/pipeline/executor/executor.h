@@ -206,25 +206,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
 
   void SetupOutputQueuesForGraph();
 
-  class EventList {
-   public:
-    inline EventList() = default;
-    inline EventList(int size, EventPool *event_pool) {
-      DALI_ENFORCE(event_pool != nullptr);
-      for (int i = 0; i < size; ++i) {
-        events_.push_back(event_pool->GetEvent());
-      }
-    }
-
-    inline cudaEvent_t GetEvent(int idx) { return events_[idx]; }
-
-    inline bool empty() const {
-      return events_.empty();
-    }
-
-   private:
-    vector<cudaEvent_t> events_;
-  };
+  
   ExecutionParams params_;
 
   cudaEvent_t mixed_stage_event_ = {};
@@ -239,7 +221,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   // Those EventList will contain the number of events matching the size of prefetch queue
   // for given stage only if there are GPU events. Otherwise they should be empty,
   // so we can skip recording and waiting for synchronous CPU buffers.
-  EventList mixed_output_events_, gpu_output_events_;
+  detail::EventList mixed_output_events_, gpu_output_events_;
 
   // Work is passed between the stages through queues. This
   // is needed for potentially asynchronous work issue, which
@@ -545,10 +527,10 @@ void Executor<QueuePolicy>::SetupOutputInfo(const OpGraph &graph) {
   };
 
   if (has_gpu_output(OpType::MIXED, pipeline_outputs_, graph)) {
-    mixed_output_events_ = EventList(stage_queue_depths_[OpType::MIXED], &event_pool_);
+    mixed_output_events_ = detail::EventList(stage_queue_depths_[OpType::MIXED], &event_pool_);
   }
   if (has_gpu_output(OpType::GPU, pipeline_outputs_, graph)) {
-    gpu_output_events_ = EventList(stage_queue_depths_[OpType::GPU], &event_pool_);
+    gpu_output_events_ = detail::EventList(stage_queue_depths_[OpType::GPU], &event_pool_);
   }
 }
 
