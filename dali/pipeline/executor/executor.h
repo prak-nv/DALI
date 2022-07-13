@@ -129,28 +129,15 @@ template <typename QueuePolicy>
 class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
  using WorkspacePolicy = AOT_WS_Policy<QueuePolicy>;
  public:
-  DLL_PUBLIC inline Executor(int max_batch_size, int num_thread, int device_id,
-                             size_t bytes_per_sample_hint, bool set_affinity = false,
-                             int max_num_stream = -1, int default_cuda_stream_priority = 0,
-                             QueueSizes prefetch_queue_depth = QueueSizes{2, 2})
-      : max_batch_size_(max_batch_size),
-        device_id_(device_id),
-        bytes_per_sample_hint_(bytes_per_sample_hint),
-        callback_(nullptr),
-        event_pool_(),
-        thread_pool_(num_thread, device_id, set_affinity, "Executor"),
-        exec_error_(false),
-        queue_sizes_(prefetch_queue_depth),
-        enable_memory_stats_(false) {
-    DALI_ENFORCE(max_batch_size_ > 0, "Max batch size must be greater than 0.");
-
+  DLL_PUBLIC Executor(ExecutionParams params, QueueSizes prefetch_queue_depth = QueueSizes{2, 2})
+    : params_(params),
+      event_pool_(),
+      thread_pool_(params.num_thread, params.device_id, params.set_affinity, "Executor"),
+      queue_sizes_(prefetch_queue_depth),
+      enable_memory_stats_(false) {
+    DALI_ENFORCE(params.max_batch_size > 0, "Max batch size must be greater than 0.");
     stage_queue_depths_ = QueuePolicy::GetQueueSizes(prefetch_queue_depth);
   }
-
-  DLL_PUBLIC Executor(ExecutionParams params, QueueSizes prefetch_queue_depth = QueueSizes{2, 2})
-      : Executor(params.max_batch_size, params.num_thread, params.device_id,
-                 params.bytes_per_sample_hint, params.set_affinity, params.max_num_stream,
-                 params.default_cuda_stream_priority, prefetch_queue_depth) {}
 
   DLL_PUBLIC ~Executor() override;
 
@@ -322,8 +309,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
    private:
     vector<cudaEvent_t> events_;
   };
-  int max_batch_size_, device_id_;
-  size_t bytes_per_sample_hint_;
+  ExecutionParams params_;
 
   std::mutex cpu_memory_stats_mutex_;
   std::mutex mixed_memory_stats_mutex_;
@@ -368,12 +354,12 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   std::queue<int> batch_sizes_cpu_, batch_sizes_mixed_, batch_sizes_gpu_;
 
   OpGraph *graph_ = nullptr;
-  ExecutorCallback callback_;
+  ExecutorCallback callback_ = nullptr;
   EventPool event_pool_;
   ThreadPool thread_pool_;
   std::vector<std::string> errors_;
   mutable std::mutex errors_mutex_;
-  bool exec_error_;
+  bool exec_error_ = false;
   QueueSizes queue_sizes_;
   std::vector<tensor_data_store_queue_t> tensor_to_store_queue_;
   CUDAStreamLease mixed_op_stream_, gpu_op_stream_;
@@ -455,7 +441,7 @@ void Executor<QueuePolicy>::Build(OpGraph *graph, vector<string> output_names) {
   output_names_ = std::move(output_names);
   graph_ = graph;
 
-  DeviceGuard g(device_id_);
+  DeviceGuard g(params_.device_id);
 
   // Remove any node from the graph whose output
   // will not be used as an output or by another node
@@ -473,12 +459,12 @@ void Executor<QueuePolicy>::Build(OpGraph *graph, vector<string> output_names) {
 
   // Create corresponding storage type for TensorNodes in graph
   tensor_to_store_queue_ =
-      CreateBackingStorageForTensorNodes(*graph_, max_batch_size_, queue_sizes);
+      CreateBackingStorageForTensorNodes(*graph_, params_.max_batch_size, queue_sizes);
   // Setup stream and events that will be used for execution
-  if (device_id_ != CPU_ONLY_DEVICE_ID) {
-    DeviceGuard g(device_id_);
-    mixed_op_stream_ = CUDAStreamPool::instance().Get(device_id_);
-    gpu_op_stream_ = CUDAStreamPool::instance().Get(device_id_);
+  if (params_.device_id != CPU_ONLY_DEVICE_ID) {
+    DeviceGuard g(params_.device_id);
+    mixed_op_stream_ = CUDAStreamPool::instance().Get(params_.device_id);
+    gpu_op_stream_ = CUDAStreamPool::instance().Get(params_.device_id);
     mixed_op_events_ =
         CreateEventsForMixedOps(event_pool_, *graph_, stage_queue_depths_[OpType::MIXED]);
 
@@ -523,7 +509,7 @@ void Executor<QueuePolicy>::Outputs(DeviceWorkspace *ws) {
 template <typename QueuePolicy>
 void Executor<QueuePolicy>::ShareOutputs(DeviceWorkspace *ws) {
   DALI_ENFORCE(ws != nullptr, "Workspace is nullptr");
-  DeviceGuard g(device_id_);
+  DeviceGuard g(params_.device_id);
   ws->Clear();
 
   if (exec_error_ || QueuePolicy::IsStopSignaled())
@@ -628,7 +614,7 @@ void Executor<QueuePolicy>::PruneUnusedGraphNodes() {
 
 template <typename QueuePolicy>
 void Executor<QueuePolicy>::SetupOutputInfo(const OpGraph &graph) {
-  DeviceGuard g(device_id_);
+  DeviceGuard g(params_.device_id);
   pipeline_outputs_ = graph.GetOutputs(output_names_);
 
   // If there are GPU outputs from given stages, we have to wait for them
@@ -708,7 +694,7 @@ void Executor<QueuePolicy>::PrepinData(
 template <typename QueuePolicy>
 void Executor<QueuePolicy>::PresizeData(
     std::vector<tensor_data_store_queue_t> &tensor_to_store_queue, const OpGraph &graph) {
-  DeviceGuard g(device_id_);
+  DeviceGuard g(params_.device_id);
   DomainTimeRange tr("[DALI][Executor] PresizeData");
 
   auto should_reserve = [](auto &storage, Index hint, StorageDevice dev) -> bool {
@@ -745,7 +731,7 @@ void Executor<QueuePolicy>::PresizeData(
           auto& queue = get_queue<op_type_static, dev_static>(tensor_to_store_queue[tensor.id]);
           for (auto storage : queue) {
             if (should_reserve(storage, hint, dev_static)) {
-              reserve_batch(storage, *node.op, hint, max_batch_size_);
+              reserve_batch(storage, *node.op, hint, params_.max_batch_size);
             }
             if (node.op->CanInferOutputs()) {
               storage->SetContiguous(true);
@@ -761,7 +747,7 @@ template <typename QueuePolicy>
 std::vector<int> Executor<QueuePolicy>::GetMemoryHints(const OpNode &node) {
   std::vector<int> hints;
   GetSingleOrRepeatedArg(node.spec, hints, "bytes_per_sample_hint", node.spec.NumOutput());
-  std::replace(hints.begin(), hints.end(), 0, static_cast<int>(bytes_per_sample_hint_));
+  std::replace(hints.begin(), hints.end(), 0, static_cast<int>(params_.bytes_per_sample_hint));
   return hints;
 }
 
