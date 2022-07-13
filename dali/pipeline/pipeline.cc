@@ -95,44 +95,41 @@ Pipeline::Pipeline(const string &serialized_pipe, int batch_size, int num_thread
                    bool pipelined_execution, int prefetch_queue_depth, bool async_execution,
                    size_t bytes_per_sample_hint, bool set_affinity, int max_num_stream,
                    int default_cuda_stream_priority, int64_t seed)
-    : built_(false), separated_execution_(false) {
+    : built_(false), executor_config_({pipelined_execution, async_execution, false}) {
   dali_proto::PipelineDef def;
   DALI_ENFORCE(DeserializePipeline(serialized_pipe, def), "Error parsing serialized pipeline.");
 
     // If not given, take parameters from the serialized pipeline
-    this->max_batch_size_ = batch_size == -1 ? def.batch_size() : batch_size;
-    DALI_ENFORCE(this->max_batch_size_ > 0,
-                 make_string("You are trying to create a pipeline with an incorrect batch size (",
-                             this->max_batch_size_, "). Please set the batch_size argument "
-                             "to a positive integer."));
+  params_.max_batch_size = batch_size == -1 ? def.batch_size() : batch_size;
+  DALI_ENFORCE(params_.max_batch_size > 0,
+               make_string("You are trying to create a pipeline with an incorrect batch size (",
+                           params_.max_batch_size,
+                           "). Please set the batch_size argument "
+                           "to a positive integer."));
 
-    this->device_id_ = device_id == -1 ? def.device_id() : device_id;
-    DALI_ENFORCE(this->device_id_ >= 0 || this->device_id_ == CPU_ONLY_DEVICE_ID,
-                 make_string("You are trying to create a pipeline with a negative device id (",
-                             this->device_id_, "). Please set a correct device_id."));
+  params_.device_id = device_id == -1 ? def.device_id() : device_id;
+  DALI_ENFORCE(params_.device_id >= 0 || params_.device_id == CPU_ONLY_DEVICE_ID,
+               make_string("You are trying to create a pipeline with a negative device id (",
+                           params_.device_id, "). Please set a correct device_id."));
 
-    this->num_threads_ = num_threads == -1 ? static_cast<int>(def.num_threads()) : num_threads;
-    DALI_ENFORCE(this->num_threads_ > 0,
-                 make_string("You are trying to create a pipeline with an incorrect number "
-                             "of worker threads (", this->num_threads_, "). Please set the "
-                             "num_threads argument to a positive integer."));
-    seed = seed == -1 ? def.seed() : seed;
+  params_.num_thread = num_threads == -1 ? static_cast<int>(def.num_threads()) : num_threads;
+  DALI_ENFORCE(params_.num_thread > 0,
+               make_string("You are trying to create a pipeline with an incorrect number "
+                           "of worker threads (",
+                           params_.num_thread,
+                           "). Please set the "
+                           "num_threads argument to a positive integer."));
+  seed = seed == -1 ? def.seed() : seed;
 
-    Init(this->max_batch_size_, this->num_threads_,
-         this->device_id_, seed,
-         pipelined_execution,
-         separated_execution_,
-         async_execution,
-         bytes_per_sample_hint,
-         set_affinity,
-         max_num_stream,
-         default_cuda_stream_priority,
-         QueueSizes{prefetch_queue_depth});
+  Init(params_.max_batch_size, params_.num_thread, params_.device_id, seed,
+       executor_config_.pipelined, executor_config_.separated, executor_config_.async,
+       bytes_per_sample_hint, set_affinity, max_num_stream, default_cuda_stream_priority,
+       QueueSizes{prefetch_queue_depth});
 
-    // from serialized pipeline, construct new pipeline
-    // All external inputs
-    for (auto& ex : def.external_inputs()) {
-      this->AddExternalInput(ex);
+  // from serialized pipeline, construct new pipeline
+  // All external inputs
+  for (auto &ex : def.external_inputs()) {
+    this->AddExternalInput(ex);
     }
     // all operators
     for (auto& op_def : def.op()) {
@@ -149,58 +146,129 @@ Pipeline::Pipeline(const string &serialized_pipe, int batch_size, int num_thread
     }
 }
 
+Pipeline::Pipeline(const string &serialized_pipe, ExecutionParams params, ExecutorConfig config,
+                   int prefetch_queue_depth, int64_t seed)
+    : built_(false), executor_config_(config) {
+  dali_proto::PipelineDef def;
+  DALI_ENFORCE(DeserializePipeline(serialized_pipe, def), "Error parsing serialized pipeline.");
+
+  // If not given, take parameters from the serialized pipeline
+  params.max_batch_size = params.max_batch_size == -1 ? def.batch_size() : params.max_batch_size;
+  DALI_ENFORCE(params.max_batch_size > 0,
+               make_string("You are trying to create a pipeline with an incorrect batch size (",
+                           params.max_batch_size,
+                           "). Please set the batch_size argument "
+                           "to a positive integer."));
+
+  params.device_id = params.device_id == -1 ? def.device_id() : params.device_id;
+  DALI_ENFORCE(params.device_id >= 0 || params.device_id == CPU_ONLY_DEVICE_ID,
+               make_string("You are trying to create a pipeline with a negative device id (",
+                           params.device_id, "). Please set a correct device_id."));
+
+  params.num_thread =
+      params.num_thread == -1 ? static_cast<int>(def.num_threads()) : params.num_thread;
+  DALI_ENFORCE(params.num_thread > 0,
+               make_string("You are trying to create a pipeline with an incorrect number "
+                           "of worker threads (",
+                           params.num_thread,
+                           "). Please set the "
+                           "num_threads argument to a positive integer."));
+  seed = seed == -1 ? def.seed() : seed;
+
+  Init(params, config, seed, QueueSizes{prefetch_queue_depth});
+
+  // from serialized pipeline, construct new pipeline
+  // All external inputs
+  for (auto &ex : def.external_inputs()) {
+    this->AddExternalInput(ex);
+  }
+  // all operators
+  for (auto &op_def : def.op()) {
+    OpSpec spec;
+    dali::DeserializeOpSpec(op_def, &spec);
+
+    this->AddOperator(spec, op_def.inst_name(),
+                      op_def.logical_id() == -1 ? GetNextLogicalId() : op_def.logical_id());
+  }
+  // output names
+  for (auto &output : def.pipe_outputs()) {
+    this->output_descs_.emplace_back(output.name(), output.device(),
+                                     static_cast<DALIDataType>(output.dtype()), output.ndim());
+  }
+}
+
 Pipeline::~Pipeline() {
-  DeviceGuard dg(device_id_);
+  DeviceGuard dg(params_.device_id);
   if (executor_)
     executor_->Shutdown();
   graph_ = {};
+}
+
+static void VerifyPriority(int device_id, int default_cuda_stream_priority) {
+  int lowest_cuda_stream_priority = 0, highest_cuda_stream_priority = 0;
+  // do it only for the GPU pipeline
+  if (device_id != CPU_ONLY_DEVICE_ID) {
+    DeviceGuard g(device_id);
+    CUDA_CALL(cudaDeviceGetStreamPriorityRange(&lowest_cuda_stream_priority,
+                                               &highest_cuda_stream_priority));
+  }
+  const auto min_priority_value =
+      std::min(lowest_cuda_stream_priority, highest_cuda_stream_priority);
+  const auto max_priority_value =
+      std::max(lowest_cuda_stream_priority, highest_cuda_stream_priority);
+  DALI_ENFORCE(default_cuda_stream_priority >= min_priority_value &&
+                   default_cuda_stream_priority <= max_priority_value,
+               "Provided default cuda stream priority `" +
+                   std::to_string(default_cuda_stream_priority) +
+                   "` is outside the priority range [" + std::to_string(min_priority_value) + ", " +
+                   std::to_string(max_priority_value) + "], with lowest priority being `" +
+                   std::to_string(lowest_cuda_stream_priority) + "` and highest priority being `" +
+                   std::to_string(highest_cuda_stream_priority) + "`");
 }
 
 void Pipeline::Init(int max_batch_size, int num_threads, int device_id, int64_t seed,
                     bool pipelined_execution, bool separated_execution, bool async_execution,
                     size_t bytes_per_sample_hint, bool set_affinity, int max_num_stream,
                     int default_cuda_stream_priority, QueueSizes prefetch_queue_depth) {
-    // guard cudaDeviceGetStreamPriorityRange call
-    DeviceGuard g(device_id);
-    this->max_batch_size_ = max_batch_size;
-    this->num_threads_ = num_threads;
-    this->device_id_ = device_id;
-    using Clock = std::chrono::high_resolution_clock;
-    this->original_seed_ = seed < 0 ? Clock::now().time_since_epoch().count() : seed;
-    this->pipelined_execution_ = pipelined_execution;
-    this->separated_execution_ = separated_execution;
-    this->async_execution_ = async_execution;
-    this->bytes_per_sample_hint_ = bytes_per_sample_hint;
-    this->set_affinity_ = set_affinity;
-    this->max_num_stream_ = max_num_stream;
-    this->default_cuda_stream_priority_ = default_cuda_stream_priority;
-    this->prefetch_queue_depth_ = prefetch_queue_depth;
-    DALI_ENFORCE(max_batch_size_ > 0, "Max batch size must be greater than 0");
+  params_.max_batch_size = max_batch_size;
+  params_.num_thread = num_threads;
+  params_.device_id = device_id;
+  params_.bytes_per_sample_hint = bytes_per_sample_hint;
+  params_.set_affinity = set_affinity;
+  params_.max_num_stream = max_num_stream;
+  params_.default_cuda_stream_priority = default_cuda_stream_priority;
+  this->prefetch_queue_depth_ = prefetch_queue_depth;
+  DALI_ENFORCE(params_.max_batch_size > 0, "Max batch size must be greater than 0");
 
-    int lowest_cuda_stream_priority = 0, highest_cuda_stream_priority = 0;
-    // do it only for the GPU pipeline
-    if (device_id != CPU_ONLY_DEVICE_ID) {
-      CUDA_CALL(cudaDeviceGetStreamPriorityRange(&lowest_cuda_stream_priority,
-                                                 &highest_cuda_stream_priority));
-    }
-    const auto min_priority_value =
-        std::min(lowest_cuda_stream_priority, highest_cuda_stream_priority);
-    const auto max_priority_value =
-        std::max(lowest_cuda_stream_priority, highest_cuda_stream_priority);
-    DALI_ENFORCE(
-        default_cuda_stream_priority >= min_priority_value &&
-        default_cuda_stream_priority <= max_priority_value,
-        "Provided default cuda stream priority `" + std::to_string(default_cuda_stream_priority) +
-        "` is outside the priority range [" + std::to_string(min_priority_value) + ", " +
-        std::to_string(max_priority_value) + "], with lowest priority being `" +
-        std::to_string(lowest_cuda_stream_priority) + "` and highest priority being `" +
-        std::to_string(highest_cuda_stream_priority) + "`");
+  executor_config_.pipelined = pipelined_execution;
+  executor_config_.separated = separated_execution;
+  executor_config_.async = async_execution;
 
-    seed_.resize(MAX_SEEDS);
-    current_seed_ = 0;
-    std::seed_seq ss{this->original_seed_};
-    ss.generate(seed_.begin(), seed_.end());
-  }
+  VerifyPriority(device_id, default_cuda_stream_priority);
+
+  InitSeed(seed);
+}
+
+void Pipeline::Init(ExecutionParams params, ExecutorConfig config, int64_t seed,
+                    QueueSizes prefetch_queue_depth) {
+  params_ = params;
+  DALI_ENFORCE(params.max_batch_size > 0, "Max batch size must be greater than 0");
+  executor_config_ = config;
+
+  VerifyPriority(params.device_id, params.default_cuda_stream_priority);
+
+  InitSeed(seed);
+}
+
+void Pipeline::InitSeed(int64_t seed) {
+  using Clock = std::chrono::high_resolution_clock;
+  this->original_seed_ = seed < 0 ? Clock::now().time_since_epoch().count() : seed;
+
+  seed_.resize(MAX_SEEDS);
+  current_seed_ = 0;
+  std::seed_seq ss{this->original_seed_};
+  ss.generate(seed_.begin(), seed_.end());
+}
 
 static bool has_prefix(const std::string &operator_name, const std::string& prefix) {
   if (operator_name.size() < prefix.size()) return false;
@@ -243,9 +311,10 @@ int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name
     "Invalid device argument \"" +  device +
     "\". Valid options are \"cpu\", \"gpu\" or \"mixed\"");
 
-  DALI_ENFORCE(device != "gpu" || device_id_ != CPU_ONLY_DEVICE_ID,
-               make_string("Cannot add a GPU operator ", operator_name, ", device_id should not be"
-               " equal CPU_ONLY_DEVICE_ID."));
+  DALI_ENFORCE(device != "gpu" || params_.device_id != CPU_ONLY_DEVICE_ID,
+               make_string("Cannot add a GPU operator ", operator_name,
+                           ", device_id should not be"
+                           " equal CPU_ONLY_DEVICE_ID."));
 
   if (device == "support") {
     DALI_WARN("\"support\" device is deprecated; use \"cpu\" or leave blank instead");
@@ -253,7 +322,7 @@ int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name
     spec.SetArg("device", "cpu");
   }
 
-  DeviceGuard g(device_id_);
+  DeviceGuard g(params_.device_id);
 
   // Verify the regular inputs to the op
   for (int i = 0; i < spec.NumInput(); ++i) {
@@ -290,9 +359,9 @@ int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name
           "inputs. CPU op cannot follow GPU op. " + error_str);
       DALI_ENFORCE(it->second.has_cpu, "cpu input requested by op exists "
           "only on gpu. CPU op cannot follow GPU op. " + error_str);
-      DALI_ENFORCE(device_id_ != CPU_ONLY_DEVICE_ID || device == "cpu",
+      DALI_ENFORCE(params_.device_id != CPU_ONLY_DEVICE_ID || device == "cpu",
                    make_string("Cannot add a mixed operator ", operator_name,
-                   " with a GPU output, device_id should not be CPU_ONLY_DEVICE_ID."));
+                               " with a GPU output, device_id should not be CPU_ONLY_DEVICE_ID."));
     } else if (input_device == "cpu") {
       // device == gpu
       DALI_ENFORCE(it->second.has_cpu, "cpu input requested by op exists "
@@ -321,7 +390,7 @@ int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name
           "data node was provided (op: '", spec.name(), "', input: '", input_name, "')"));
     }
 
-    if (device == "gpu" && separated_execution_)
+    if (device == "gpu" && executor_config_.separated)
       SetupCPUInput(it, input_idx, &spec);
   }
 
@@ -435,17 +504,15 @@ void Pipeline::Build(const vector<std::pair<string, string>>& output_names) {
 }
 
 void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
-  DeviceGuard d(device_id_);
+  DeviceGuard d(params_.device_id);
   SetOutputDescs(std::move(output_descs));
   DALI_ENFORCE(!built_, "\"Build()\" can only be called once.");
   auto num_outputs = output_descs_.size();
   DALI_ENFORCE(num_outputs > 0,
                make_string("User specified incorrect number of outputs (", num_outputs, ")."));
 
-  executor_ =
-      GetExecutor(pipelined_execution_, separated_execution_, async_execution_, max_batch_size_,
-                  num_threads_, device_id_, bytes_per_sample_hint_, set_affinity_, max_num_stream_,
-                  default_cuda_stream_priority_, prefetch_queue_depth_);
+  ExecutorConfig cfg = executor_config_;
+  executor_ = GetExecutor(cfg, params_, prefetch_queue_depth_);
   executor_->EnableMemoryStats(enable_memory_stats_);
   executor_->Init();
 
@@ -509,13 +576,13 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
       }
       outputs.push_back("contiguous_" + name + "_" + device);
     } else if (device == "gpu") {
-      DALI_ENFORCE(device_id_ != CPU_ONLY_DEVICE_ID,
-                   make_string(
-                     "Cannot move the data node ", name, " to the GPU "
-                     "in a CPU-only pipeline. The `device_id` parameter "
-                     "is set to `CPU_ONLY_DEVICE_ID`. Set `device_id` "
-                     "to a valid GPU identifier to enable GPU features "
-                     "in the pipeline."));
+      DALI_ENFORCE(params_.device_id != CPU_ONLY_DEVICE_ID,
+                   make_string("Cannot move the data node ", name,
+                               " to the GPU "
+                               "in a CPU-only pipeline. The `device_id` parameter "
+                               "is set to `CPU_ONLY_DEVICE_ID`. Set `device_id` "
+                               "to a valid GPU identifier to enable GPU features "
+                               "in the pipeline."));
       if (!it->second.has_gpu) {
         DALI_ENFORCE(it->second.has_cpu, "Output '" + name +
             "' exists on neither cpu or gpu, internal error");
@@ -677,10 +744,10 @@ void Pipeline::PrepareOpSpec(OpSpec *spec, int logical_id) {
   if (logical_id_to_seed_.find(logical_id) == logical_id_to_seed_.end()) {
     logical_id_to_seed_[logical_id] = seed_[current_seed_];
   }
-  spec->AddArg("max_batch_size", max_batch_size_)
-    .AddArg("num_threads", num_threads_)
-    .AddArg("device_id", device_id_)
-    .AddArgIfNotExisting("seed", logical_id_to_seed_[logical_id]);
+  spec->AddArg("max_batch_size", params_.max_batch_size)
+      .AddArg("num_threads", params_.num_thread)
+      .AddArg("device_id", params_.device_id)
+      .AddArgIfNotExisting("seed", logical_id_to_seed_[logical_id]);
   string dev = spec->GetArgument<string>("device");
   if (dev == "cpu" || dev == "mixed")
     spec->AddArg("cpu_prefetch_queue_depth", prefetch_queue_depth_.cpu_size);
@@ -762,7 +829,7 @@ string Pipeline::SerializeToProtobuf() const {
     out->set_dtype(output.dtype);
     out->set_ndim(output.ndim);
   }
-  pipe.set_device_id(this->device_id_);
+  pipe.set_device_id(params_.device_id);
   string output = pipe.SerializeAsString();
 
   return output;
