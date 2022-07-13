@@ -85,8 +85,14 @@ struct Stage {
 
   virtual ~Stage() noexcept = 0;
 
+  ProtectedStatsMap GetStatMapsRef() {
+    return std::make_pair(std::ref(stats_), std::ref(stats_mutex_));
+  }
+
  protected:
   Stage(Kind kind) noexcept : kind_(kind) {}
+  std::mutex stats_mutex_;
+  ExecutorMetaMap stats_;
   Kind kind_;
 };
 
