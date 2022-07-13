@@ -139,6 +139,38 @@ struct Stage {
     return nullptr;
   }
 
+  template <typename Workspace>
+  void FillStats(Workspace &ws, std::string op_name) {
+    size_t out_size = 0;
+    size_t max_out_size = 0;
+    size_t reserved_size = 0;
+    size_t max_reserved_size = 0;
+    std::lock_guard<std::mutex> lck(stats_mutex_);
+    auto &stats = stats_[StageStatsPrefix() + op_name];
+    stats.resize(ws.NumOutput(), {0, 0});
+
+    for (int i = 0; i < ws.NumOutput(); ++i) {
+      out_size = 0;
+      max_out_size = 0;
+      reserved_size = 0;
+      max_reserved_size = 0;
+      if (ws.template OutputIsType<CPUBackend>(i)) {
+        auto &out = ws.template Output<CPUBackend>(i);
+        out_size = out.nbytes();
+        reserved_size = out.capacity();
+        MaxSizeHelper::GetMaxSizes(out, max_out_size, max_reserved_size);
+      } else {
+        auto &out = ws.template Output<GPUBackend>(i);
+        out_size = out.nbytes();
+        reserved_size = out.capacity();
+        MaxSizeHelper::GetMaxSizes(out, max_out_size, max_reserved_size);
+      }
+      stats[i].real_size = std::max(out_size, stats[i].real_size);
+      stats[i].max_real_size = std::max(max_out_size, stats[i].max_real_size);
+      stats[i].reserved = std::max(reserved_size, stats[i].reserved);
+      stats[i].max_reserved = std::max(max_reserved_size, stats[i].max_reserved);
+    }
+  }
 
   virtual ~Stage() noexcept = 0;
 
