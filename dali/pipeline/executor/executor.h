@@ -351,6 +351,19 @@ void Executor<QueuePolicy>::Build(OpGraph *graph, vector<string> output_names) {
   // Setup stream and events that will be used for execution
   if (params_.device_id != CPU_ONLY_DEVICE_ID) {
     DeviceGuard g(params_.device_id);
+#if 0
+    for (auto &s : stages_) {
+      if (s->UsesGPU()) {
+        auto *gpu = cast<DeviceStageBase>(s.get());
+        gpu->op_stream_ = CUDAStreamPool::instance().Get(params_.device_id);
+        gpu->stage_event_ = event_pool_.GetEvent();
+      }
+      auto *mixed = dyncast<CPU2GPUStage>(s.get());
+      if (mixed) {
+        mixed->mixed_op_events_ = CreateEventsForMixedOps(event_pool_, *graph, stage_queue_depths_[OpType::MIXED]);
+      }
+    }
+#else
     mixed_op_stream_ = CUDAStreamPool::instance().Get(params_.device_id);
     gpu_op_stream_ = CUDAStreamPool::instance().Get(params_.device_id);
     mixed_op_events_ =
@@ -359,6 +372,7 @@ void Executor<QueuePolicy>::Build(OpGraph *graph, vector<string> output_names) {
     // Create events used to synchronize stages using gpu with themselves
     mixed_stage_event_ = event_pool_.GetEvent();
     gpu_stage_event_ = event_pool_.GetEvent();
+#endif
   }
 
   PrepinData(tensor_to_store_queue_, *graph_);

@@ -274,6 +274,9 @@ struct DeviceStageBase : public Stage {
   // for given stage only if there are GPU events. Otherwise they should be empty,
   // so we can skip recording and waiting for synchronous CPU buffers.
   detail::EventList output_events_;
+
+  cudaEvent_t stage_event_;
+  CUDAStreamLease op_stream_;
 };
 
 struct GPUStage final : public DeviceStageBase {
