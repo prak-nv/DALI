@@ -264,6 +264,16 @@ struct DeviceStageBase : public Stage {
     return s->GetKind() != Kind::cpu;
   }
 
+  void CreateOutputEvents(DeviceGuard &g, int queue_depth, EventPool &pool) {
+    output_events_ = detail::EventList(queue_depth, &pool);
+    (void)g;
+  }
+
+  // If there are GPU outputs from given stages, we have to wait for them to finish.
+  // Those EventList will contain the number of events matching the size of prefetch queue
+  // for given stage only if there are GPU events. Otherwise they should be empty,
+  // so we can skip recording and waiting for synchronous CPU buffers.
+  detail::EventList output_events_;
 };
 
 struct GPUStage final : public DeviceStageBase {
