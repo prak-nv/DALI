@@ -135,6 +135,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
       enable_memory_stats_(false) {
     DALI_ENFORCE(params.max_batch_size > 0, "Max batch size must be greater than 0.");
     stage_queue_depths_ = QueuePolicy::GetQueueSizes(prefetch_queue_depth);
+    stages_ = {stage_ptr_t(new CPUStage), stage_ptr_t(new CPU2GPUStage), stage_ptr_t(new GPUStage)};
   }
 
   DLL_PUBLIC ~Executor() override;
@@ -372,6 +373,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   std::atomic<bool> enable_memory_stats_;
   ExecutorMetaMap cpu_memory_stats_, mixed_memory_stats_, gpu_memory_stats_;
 
+  ExecutionPlan stages_;
 
   /// Graph nodes, which define batch size for the entire graph
   std::vector<BatchSizeProvider *> batch_size_providers_;
