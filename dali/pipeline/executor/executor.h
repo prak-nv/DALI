@@ -26,10 +26,9 @@
 #include <mutex>
 
 #include "dali/core/common.h"
-#include "dali/core/cuda_stream_pool.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/nvtx.h"
-#include "dali/pipeline/data/backend.h"
+#include "dali/pipeline/executor/execution_stage.h"
 #include "dali/pipeline/executor/queue_metadata.h"
 #include "dali/pipeline/executor/queue_policy.h"
 #include "dali/pipeline/executor/workspace_policy.h"
@@ -39,7 +38,6 @@
 #include "dali/pipeline/operator/batch_size_provider.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/util/batch_utils.h"
-#include "dali/pipeline/util/event_pool.h"
 #include "dali/pipeline/util/stream_pool.h"
 #include "dali/pipeline/util/thread_pool.h"
 #include "dali/pipeline/workspace/device_workspace.h"
