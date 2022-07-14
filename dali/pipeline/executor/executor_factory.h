@@ -17,38 +17,12 @@
 
 #include <memory>
 
-#include "dali/pipeline/executor/executor.h"
-#include "dali/pipeline/executor/pipelined_executor.h"
-#include "dali/pipeline/executor/async_pipelined_executor.h"
-#include "dali/pipeline/executor/async_separated_pipelined_executor.h"
+#include "dali/pipeline/executor/queue_metadata.h"
+#include "dali/pipeline/executor/executor_base.h"
 
 namespace dali {
 
-template <typename... Ts>
-std::unique_ptr<ExecutorBase> GetExecutor(bool pipelined, bool separated, bool async,
-                                          Ts... args) {
-  if (async && separated && pipelined) {
-    return std::unique_ptr<ExecutorBase>{new AsyncSeparatedPipelinedExecutor(args...)};
-  } else if (async && !separated && pipelined) {
-    return std::unique_ptr<ExecutorBase>{new AsyncPipelinedExecutor(args...)};
-  } else if (!async && separated && pipelined) {
-    return std::unique_ptr<ExecutorBase>{new SeparatedPipelinedExecutor(args...)};
-  } else if (!async && !separated && pipelined) {
-    return std::unique_ptr<ExecutorBase>{new PipelinedExecutor(args...)};
-  } else if (!async && !separated && !pipelined) {
-    return std::unique_ptr<ExecutorBase>{new SimpleExecutor(args...)};
-  }
-  std::stringstream error;
-  error << std::boolalpha;
-  error << "No supported executor selected for pipelined = " << pipelined
-        << ", separated = " << separated << ", async = " << async << std::endl;
-  DALI_FAIL(error.str());
-}
-
-template <typename... Ts>
-std::unique_ptr<ExecutorBase> GetExecutor(ExecutorConfig config, Ts... args) {
-  return GetExecutor(config.pipelined, config.separated, config.async, std::forward<Ts>(args)...);
-}
+std::unique_ptr<ExecutorBase> GetExecutor(ExecutorConfig config, ExecutionParams params, QueueSizes prefetch_queue_depth);
 
 }  // namespace dali
 

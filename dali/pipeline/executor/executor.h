@@ -28,6 +28,7 @@
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/nvtx.h"
+#include "dali/pipeline/executor/executor_base.h"
 #include "dali/pipeline/executor/execution_stage.h"
 #include "dali/pipeline/executor/queue_metadata.h"
 #include "dali/pipeline/executor/queue_policy.h"
@@ -56,59 +57,6 @@ static inline void AppendToMap(ExecutorMetaMap &ret, ExecutorMetaMap &in_stats, 
 static inline void AppendToMap(ExecutorMetaMap &ret, ProtectedStatsMap in_stats);
 
 }  // namespace detail
-
-class DLL_PUBLIC ExecutorBase {
- public:
-  using ExecutorCallback = std::function<void(void)>;
-  DLL_PUBLIC virtual ~ExecutorBase() {}
-  DLL_PUBLIC virtual void Build(OpGraph *graph, vector<string> output_names) = 0;
-  DLL_PUBLIC virtual void Init() = 0;
-  DLL_PUBLIC virtual void RunCPU() = 0;
-  DLL_PUBLIC virtual void RunMixed() = 0;
-  DLL_PUBLIC virtual void RunGPU() = 0;
-  DLL_PUBLIC virtual void Outputs(DeviceWorkspace *ws) = 0;
-  DLL_PUBLIC virtual void ShareOutputs(DeviceWorkspace *ws) = 0;
-  DLL_PUBLIC virtual void ReleaseOutputs() = 0;
-  DLL_PUBLIC virtual void SetCompletionCallback(ExecutorCallback cb) = 0;
-  DLL_PUBLIC virtual void EnableMemoryStats(bool enable_memory_stats = false) = 0;
-  DLL_PUBLIC virtual ExecutorMetaMap GetExecutorMeta() = 0;
-  DLL_PUBLIC virtual void Shutdown() = 0;
-
- protected:
-  // virtual to allow the TestPruneWholeGraph test in gcc
-  virtual void PruneUnusedGraphNodes() = 0;
-
-  template <typename T>
-  friend class ExecutorTest;
-};
-
-/**
- * @brief Execution parameters of the pipeline.
- */
-struct DLL_PUBLIC ExecutionParams {
-  int device_id = -1;      /**< id of the GPU to operate on. */
-  int num_thread = -1;     /**< the number of threads to use in the prefetch stage. */
-  int max_batch_size = -1; /**< the maximum size of the batch that can be produced. */
-  int max_num_stream = -1; /**< set an upper limit on the number of cudaStreams that can be
-                              allocated by the pipeline. */
-  int default_cuda_stream_priority = 0; /**< CUDA stream priority used by DALI. See
-                                           `cudaStreamCreateWithPriority` in CUDA documentation */
-  size_t bytes_per_sample_hint = 0;     /**< Estimated size of each sample to be processed. */
-  bool set_affinity =
-      false; /**< indicates whether thread affinity should be configured in the thread pool */
-};
-
-/**
- * @brief Configuration for executor mode setup.
- */
-struct DLL_PUBLIC ExecutorConfig {
-  bool pipelined = true;  /**< whether to allocate the necessary buffers for pipeline execution
-                           * between the cpu and gpu portions of the graph. See PipelinedExecutor. */
-  bool async = true;      /**< whether to use extra host-threads to enable asynchronous execution
-                           * of cpu and gpu work. See AsyncExecutor/AsyncPipelinedExecutor. */
-  bool separated = false; /**< whether to use separated queues for pipeline execution */
-};
-
 /**
  * @brief Basic executor for dali graphs. This executor enables
  * prefetching of results by maintaining two copies of output

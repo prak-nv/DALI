@@ -21,10 +21,7 @@
 #include <functional>
 #include <memory>
 
-#include "dali/pipeline/executor/async_pipelined_executor.h"
-#include "dali/pipeline/executor/async_separated_pipelined_executor.h"
 #include "dali/pipeline/executor/executor_factory.h"
-#include "dali/pipeline/executor/pipelined_executor.h"
 
 #include "dali/pipeline/operator/argument.h"
 #include "dali/pipeline/operator/common.h"
