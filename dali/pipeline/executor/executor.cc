@@ -155,8 +155,7 @@ void Executor<QueuePolicy>::RunMixedImpl() {
   auto it = std::find_if(stages_.begin(), stages_.end(),
                          [](stage_ptr_t &s) { return isa<CPU2GPUStage>(s.get()); });
   DALI_ENFORCE(it != stages_.end());
-  Stage *stage = it->get();
-
+  auto &mixed = *cast<DeviceStageBase>(it->get());
 
   for (int i = 0; i < graph_->NumOp(OpType::MIXED) && !exec_error_; ++i) {
     OpNode &op_node = graph_->Node(OpType::MIXED, i);
@@ -168,7 +167,7 @@ void Executor<QueuePolicy>::RunMixedImpl() {
       DomainTimeRange tr("[DALI][Mixed op] " + op_node.instance_name, DomainTimeRange::kOrange);
       RunHelper(op_node, ws);
       if (enable_memory_stats_) {
-        stage->FillStats(ws, op_node.instance_name);
+        mixed.FillStats(ws, op_node.instance_name);
       }
       if (ws.has_stream() && ws.has_event()) {
         CUDA_CALL(cudaEventRecord(ws.event(), ws.stream()));
@@ -187,9 +186,9 @@ void Executor<QueuePolicy>::RunMixedImpl() {
     CUDA_CALL(cudaEventRecord(mixed_callback_events_[mixed_idxs[OpType::MIXED]], mixed_op_stream_));
   }
 
-  if (!mixed_output_events_.empty()) {
+  if (!mixed.output_events_.empty()) {
     int queue_id = mixed_idxs[OpType::MIXED];
-    CUDA_CALL(cudaEventRecord(mixed_output_events_.GetEvent(queue_id), mixed_op_stream_));
+    CUDA_CALL(cudaEventRecord(mixed.output_events_.GetEvent(queue_id), mixed_op_stream_));
   }
 
   // We know that this is the proper stream, we do not need to look it up in any workspace
@@ -229,7 +228,7 @@ void Executor<QueuePolicy>::RunGPUImpl() {
   auto it = std::find_if(stages_.begin(), stages_.end(),
                          [](stage_ptr_t &s) { return isa<GPUStage>(s.get()); });
   DALI_ENFORCE(it != stages_.end());
-  Stage *gpu_stage = it->get();
+  auto &gpu_stage = *cast<GPUStage>(it->get());
 
   for (int i = 0; i < graph_->NumOp(OpType::GPU) && !exec_error_; ++i) {
     OpNode &op_node = graph_->Node(OpType::GPU, i);
@@ -247,7 +246,7 @@ void Executor<QueuePolicy>::RunGPUImpl() {
       DomainTimeRange tr("[DALI][GPU op] " + op_node.instance_name, DomainTimeRange::knvGreen);
       RunHelper(op_node, ws);
       if (enable_memory_stats_) {
-        gpu_stage->FillStats(ws, op_node.instance_name);
+        gpu_stage.FillStats(ws, op_node.instance_name);
       }
 
       if (ws.has_event()) {
@@ -266,9 +265,9 @@ void Executor<QueuePolicy>::RunGPUImpl() {
   // issued. Notify any waiting threads.
 
   // If we have GPU outputs than
-  if (!gpu_output_events_.empty()) {
+  if (!gpu_stage.output_events_.empty()) {
     int queue_id = gpu_idxs[OpType::GPU];
-    CUDA_CALL(cudaEventRecord(gpu_output_events_.GetEvent(queue_id), gpu_op_stream_));
+    CUDA_CALL(cudaEventRecord(gpu_stage.output_events_.GetEvent(queue_id), gpu_op_stream_));
   }
 
   // Schedule the call to any callback registered previously

@@ -217,12 +217,6 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   // Meta-data about our stage outputs for fast lookup
   std::vector<TensorNodeId> pipeline_outputs_;
 
-  // If there are GPU outputs from given stages, we have to wait for them to finish.
-  // Those EventList will contain the number of events matching the size of prefetch queue
-  // for given stage only if there are GPU events. Otherwise they should be empty,
-  // so we can skip recording and waiting for synchronous CPU buffers.
-  detail::EventList mixed_output_events_, gpu_output_events_;
-
   // Work is passed between the stages through queues. This
   // is needed for potentially asynchronous work issue, which
   // some Executors that derive from this class implement.
@@ -437,14 +431,16 @@ void Executor<QueuePolicy>::ShareOutputs(DeviceWorkspace *ws) {
 
   AccessOrder sync_order = ws->has_stream() ? AccessOrder(ws->stream()) : AccessOrder::host();
 
-  if (!mixed_output_events_.empty()) {
-    auto queue_idx = output_idx[OpType::MIXED];
-    sync_order.wait(mixed_output_events_.GetEvent(queue_idx));
-  }
-  if (!gpu_output_events_.empty()) {
-    auto queue_idx = output_idx[OpType::GPU];
-    sync_order.wait(gpu_output_events_.GetEvent(queue_idx));
-  }
+  for (auto &s : stages_) {
+   if (!s->UsesGPU()) {
+    continue;
+   }
+   DeviceStageBase *gpu = cast<DeviceStageBase>(s.get());
+   if (!gpu->output_events_.empty()) {
+    auto queue_idx = output_idx[gpu->GetOpType()];
+    sync_order.wait(gpu->output_events_.GetEvent(queue_idx));
+   }
+  }  
 }
 
 template <typename QueuePolicy>
@@ -526,11 +522,13 @@ void Executor<QueuePolicy>::SetupOutputInfo(const OpGraph &graph) {
     return false;
   };
 
-  if (has_gpu_output(OpType::MIXED, pipeline_outputs_, graph)) {
-    mixed_output_events_ = detail::EventList(stage_queue_depths_[OpType::MIXED], &event_pool_);
-  }
-  if (has_gpu_output(OpType::GPU, pipeline_outputs_, graph)) {
-    gpu_output_events_ = detail::EventList(stage_queue_depths_[OpType::GPU], &event_pool_);
+  for (auto &s : stages_) {
+    if (!s->UsesGPU()) continue;
+    OpType type = s->GetOpType();
+    int q_depth = stage_queue_depths_[type];
+    if (has_gpu_output(type, pipeline_outputs_, graph)) {
+      cast<DeviceStageBase>(s.get())->CreateOutputEvents(g, q_depth, event_pool_);
+    }
   }
 }
 
