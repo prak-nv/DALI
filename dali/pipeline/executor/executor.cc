@@ -443,6 +443,5 @@ int Executor<QueuePolicy>::InferBatchSize(
 }
 
 template class DLL_PUBLIC Executor<UniformQueuePolicy>;
-template class DLL_PUBLIC Executor<SeparateQueuePolicy>;
 
 }  // namespace dali
