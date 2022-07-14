@@ -23,5 +23,6 @@
 namespace dali {
 
 template class PipelinedExecutorImpl<UniformQueuePolicy>;
+template class PipelinedExecutorImpl<SeparateQueuePolicy>;
 
 }  // namespace dali

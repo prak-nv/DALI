@@ -35,7 +35,7 @@ namespace dali {
  * see large performance benefits from pipelining the cpu, mixed,
  * and gpu portions of the graph.
  */
-template <typename QueuePolicy = UniformQueuePolicy>
+template <typename QueuePolicy>
 class DLL_PUBLIC PipelinedExecutorImpl : public Executor<QueuePolicy> {
  public:
   DLL_PUBLIC inline PipelinedExecutorImpl(ExecutionParams params,
@@ -101,7 +101,9 @@ std::vector<int> PipelinedExecutorImpl<QueuePolicy>::GetTensorQueueSizes(
   return result;
 }
 
-using PipelinedExecutor = PipelinedExecutorImpl<>;
+using PipelinedExecutor = PipelinedExecutorImpl<UniformQueuePolicy>;
+using SeparatedPipelinedExecutor = PipelinedExecutorImpl<SeparateQueuePolicy>;
+
 }  // namespace dali
 
 #endif  // DALI_PIPELINE_EXECUTOR_PIPELINED_EXECUTOR_H_

@@ -21,6 +21,7 @@
 #include "dali/pipeline/executor/executor.h"
 #include "dali/pipeline/executor/pipelined_executor.h"
 #include "dali/pipeline/executor/async_pipelined_executor.h"
+#include "dali/pipeline/executor/async_separated_pipelined_executor.h"
 #include "dali/test/dali_test_utils.h"
 #include "dali/test/tensor_test_utils.h"
 
@@ -75,7 +76,8 @@ class ExecutorTest : public GenericDecoderTest<RGB> {
 };
 
 using ExecutorTypes =
-    ::testing::Types<SimpleExecutor, PipelinedExecutor, AsyncPipelinedExecutor>;
+    ::testing::Types<SimpleExecutor, PipelinedExecutor, SeparatedPipelinedExecutor,
+                     AsyncPipelinedExecutor, AsyncSeparatedPipelinedExecutor>;
 
 TYPED_TEST_SUITE(ExecutorTest, ExecutorTypes);
 
@@ -83,7 +85,7 @@ template <typename ExecutorToTest>
 using ExecutorSyncTest = ExecutorTest<ExecutorToTest>;
 
 using ExecutorSyncTypes =
-    ::testing::Types<SimpleExecutor, PipelinedExecutor>;
+    ::testing::Types<SimpleExecutor, PipelinedExecutor, SeparatedPipelinedExecutor>;
 
 TYPED_TEST_SUITE(ExecutorSyncTest, ExecutorSyncTypes);
 
