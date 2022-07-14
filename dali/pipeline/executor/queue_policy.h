@@ -132,7 +132,7 @@ struct UniformQueuePolicy {
     return QueueIdxs{queue_idx};
   }
 
-  void ReleaseIdxs(OpType stage, QueueIdxs idxs, cudaStream_t = 0) {
+  void ReleaseIdxs(OpType stage, QueueIdxs idxs) {
     if (idxs[stage] == kInvalidIdx) {
       return;
     }
@@ -322,7 +322,7 @@ struct SeparateQueuePolicy {
     return result;
   }
 
-  void ReleaseIdxs(OpType stage, QueueIdxs idxs, cudaStream_t stage_stream = 0) {
+  void ReleaseIdxs(OpType stage, QueueIdxs idxs) {
     if (idxs[stage] == kInvalidIdx) {
       return;
     }

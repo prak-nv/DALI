@@ -140,7 +140,7 @@ void Executor<QueuePolicy>::RunMixedImpl() {
       callback_();
     }
     // We do not release, but handle to used outputs
-    QueuePolicy::ReleaseIdxs(OpType::MIXED, mixed_idxs, mixed_op_stream_);
+    QueuePolicy::ReleaseIdxs(OpType::MIXED, mixed_idxs);
     return;
   }
 
@@ -195,7 +195,7 @@ void Executor<QueuePolicy>::RunMixedImpl() {
   CUDA_CALL(cudaEventRecord(mixed_stage_event_, mixed_op_stream_));
 
   // Pass the work to the gpu stage
-  QueuePolicy::ReleaseIdxs(OpType::MIXED, mixed_idxs, mixed_op_stream_);
+  QueuePolicy::ReleaseIdxs(OpType::MIXED, mixed_idxs);
 }
 
 
