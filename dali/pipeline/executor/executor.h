@@ -607,7 +607,7 @@ std::vector<int> Executor<QueuePolicy>::GetMemoryHints(const OpNode &node) {
 
 template <typename QueuePolicy>
 void Executor<QueuePolicy>::SetupOutputQueuesForGraph() {
-  QueuePolicy::InitializeQueues(stage_queue_depths_);
+  QueuePolicy::InitializeQueues(stages_, stage_queue_depths_);
 }
 
 using SimpleExecutor = Executor<UniformQueuePolicy>;

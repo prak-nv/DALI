@@ -84,9 +84,27 @@ static bool HasNextStage(OpType op) {
 // };
 
 
+template <typename StageDataTy>
+struct PlanQueuePolicyData {
+
+  explicit PlanQueuePolicyData(const ExecutionPlan &plan) {
+    stage_data_.resize(plan.size());
+  }
+
+  std::vector<StageDataTy> stage_data_;
+};
+
 // Each stage requires ready buffers from previous stage and free buffers from current stage
 struct UniformQueuePolicy {
   static const int kInvalidIdx = -1;
+
+  struct PerStageData {
+    std::queue<int> work_queue_;
+    std::mutex work_mutex_;
+    bool work_stop_flag_;
+  };
+
+  using PlanData = PlanQueuePolicyData<PerStageData>;
 
   static StageQueues GetQueueSizes(QueueSizes init_sizes) {
     DALI_ENFORCE(init_sizes.cpu_size == init_sizes.gpu_size,
@@ -94,7 +112,7 @@ struct UniformQueuePolicy {
     return StageQueues(init_sizes.cpu_size);
   }
 
-  void InitializeQueues(const StageQueues &stage_queue_depths) {
+  void InitializeQueues(ExecutionPlan &, const StageQueues &stage_queue_depths) {
     DALI_ENFORCE(
         stage_queue_depths[OpType::CPU] == stage_queue_depths[OpType::MIXED] &&
             stage_queue_depths[OpType::MIXED] == stage_queue_depths[OpType::GPU],
@@ -267,6 +285,32 @@ struct SeparateQueuePolicy;
 struct SeparateQueuePolicy {
   static const int kInvalidIdx = -1;
 
+  struct PerStageData {
+    // For syncing free and ready buffers between stages
+    std::mutex free_mutex_;
+    std::mutex ready_mutex;
+
+   // We use a dedicated stop flag for every mutex & condition_varialbe pair,
+   // so when using them in cond_var predicate,
+   // we know the changes are propagated properly and we won't miss a notify.
+    bool free_stop_ = false;
+    bool ready_stop_ = false;
+    std::condition_variable free_cv_;
+    std::condition_variable ready_cv;
+
+    // Buffers are rotated between being 'free', where the
+    // pipeline is ok to fill them with data, 'ready', where
+    // they are already full of prepared data, and 'in-use',
+    // where the user currently owns that buffer. A buffer
+    // is marked as in-use when it is returned as and output.
+    // The buffer is then returned the the ready queue the
+    // next time Ouputs() is called.
+    std::queue<int> free_queue_;
+    std::queue<QueueIdxs> ready_queue_;
+  };
+
+  using PlanData = PlanQueuePolicyData<PerStageData>;
+
   static StageQueues GetQueueSizes(QueueSizes init_sizes) {
     StageQueues result;
      // For non-uniform case we buffer for CPU x GPU pair.
@@ -277,7 +321,7 @@ struct SeparateQueuePolicy {
     return result;
   }
 
-  void InitializeQueues(const StageQueues &stage_queue_depths) {
+  void InitializeQueues(ExecutionPlan &, const StageQueues &stage_queue_depths) {
     for (int stage = 0; stage < static_cast<int>(OpType::COUNT); stage++) {
       for (int i = 0; i < stage_queue_depths[static_cast<OpType>(stage)]; i++) {
         stage_free_[stage].push(i);
