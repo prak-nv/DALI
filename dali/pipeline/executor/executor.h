@@ -423,9 +423,9 @@ void Executor<QueuePolicy>::SetCompletionCallback(ExecutorCallback cb) {
 template <typename QueuePolicy>
 ExecutorMetaMap Executor<QueuePolicy>::GetExecutorMeta() {
   ExecutorMetaMap ret;
-  detail::AppendToMap(ret, cpu_memory_stats_, cpu_memory_stats_mutex_);
-  detail::AppendToMap(ret, mixed_memory_stats_, mixed_memory_stats_mutex_);
-  detail::AppendToMap(ret, gpu_memory_stats_, gpu_memory_stats_mutex_);
+  for (auto &s : stages_) {
+    detail::AppendToMap(ret, s->GetStatMapsRef());
+  }
   return ret;
 }
 

@@ -99,9 +99,17 @@ void Executor<QueuePolicy>::RunCPUImpl() {
 
     DomainTimeRange tr("[DALI][CPU op] " + op_node.instance_name, DomainTimeRange::kBlue1);
 
+    auto it = std::find_if(stages_.begin(), stages_.end(), [](stage_ptr_t &s) {
+      // TODO(prak): isa for smart pointers;
+      return isa<CPUStage>(s.get());
+    });
+    DALI_ENFORCE(it != stages_.end());
+    auto *cpu_stage = it->get();
+
     try {
       RunHelper(op_node, ws);
-      FillStats(cpu_memory_stats_, ws, "CPU_" + op_node.instance_name, cpu_memory_stats_mutex_);
+      if (enable_memory_stats_)
+        cpu_stage->FillStats(ws, op_node.instance_name);
     } catch (std::exception &e) {
       HandleError("CPU", op_node, e.what());
     } catch (...) {
@@ -144,6 +152,12 @@ void Executor<QueuePolicy>::RunMixedImpl() {
   auto batch_size = batch_sizes_mixed_.front();
   batch_sizes_mixed_.pop();
 
+  auto it = std::find_if(stages_.begin(), stages_.end(),
+                         [](stage_ptr_t &s) { return isa<CPU2GPUStage>(s.get()); });
+  DALI_ENFORCE(it != stages_.end());
+  Stage *stage = it->get();
+
+
   for (int i = 0; i < graph_->NumOp(OpType::MIXED) && !exec_error_; ++i) {
     OpNode &op_node = graph_->Node(OpType::MIXED, i);
     try {
@@ -153,8 +167,9 @@ void Executor<QueuePolicy>::RunMixedImpl() {
 
       DomainTimeRange tr("[DALI][Mixed op] " + op_node.instance_name, DomainTimeRange::kOrange);
       RunHelper(op_node, ws);
-      FillStats(mixed_memory_stats_, ws, "MIXED_" + op_node.instance_name,
-                mixed_memory_stats_mutex_);
+      if (enable_memory_stats_) {
+        stage->FillStats(ws, op_node.instance_name);
+      }
       if (ws.has_stream() && ws.has_event()) {
         CUDA_CALL(cudaEventRecord(ws.event(), ws.stream()));
       }
@@ -211,6 +226,11 @@ void Executor<QueuePolicy>::RunGPUImpl() {
   auto batch_size = batch_sizes_gpu_.front();
   batch_sizes_gpu_.pop();
 
+  auto it = std::find_if(stages_.begin(), stages_.end(),
+                         [](stage_ptr_t &s) { return isa<GPUStage>(s.get()); });
+  DALI_ENFORCE(it != stages_.end());
+  Stage *gpu_stage = it->get();
+
   for (int i = 0; i < graph_->NumOp(OpType::GPU) && !exec_error_; ++i) {
     OpNode &op_node = graph_->Node(OpType::GPU, i);
     try {
@@ -226,7 +246,10 @@ void Executor<QueuePolicy>::RunGPUImpl() {
 
       DomainTimeRange tr("[DALI][GPU op] " + op_node.instance_name, DomainTimeRange::knvGreen);
       RunHelper(op_node, ws);
-      FillStats(gpu_memory_stats_, ws, "GPU_" + op_node.instance_name, gpu_memory_stats_mutex_);
+      if (enable_memory_stats_) {
+        gpu_stage->FillStats(ws, op_node.instance_name);
+      }
+
       if (ws.has_event()) {
         CUDA_CALL(cudaEventRecord(ws.event(), ws.stream()));
       }
