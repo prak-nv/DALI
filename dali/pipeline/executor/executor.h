@@ -159,86 +159,6 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   DLL_PUBLIC void RunGPUImpl();
   DLL_PUBLIC void SyncDevice();
 
-  template <typename T>
-  inline void GetMaxSizesCont(T &in, size_t &max_out_size, size_t &max_reserved_size) {
-    auto out_size = in.nbytes();
-    auto reserved_size = in.capacity();
-    max_out_size = std::max<size_t>(std::ceil((out_size * 1.0) / in.num_samples()), max_out_size);
-    max_reserved_size = std::max<size_t>(std::ceil((reserved_size * 1.0) / in.num_samples()),
-                                         max_reserved_size);
-  }
-
-  template <typename T>
-  inline void GetMaxSizesNonCont(T &in, size_t &max_out_size, size_t &max_reserved_size) {
-    const auto &nbytes = in._chunks_nbytes();
-    const auto &capacity = in._chunks_capacity();
-    max_out_size = 0;
-    max_reserved_size = 0;
-    for (auto &elem : nbytes) {
-      max_out_size = std::max(max_out_size, elem);
-    }
-    for (auto &elem : capacity) {
-      max_reserved_size = std::max(max_reserved_size, elem);
-    }
-  }
-
-  template<typename backend>
-  inline void GetMaxSizes(TensorList<backend> &in, size_t &max_out_size,
-                          size_t &max_reserved_size) {
-    GetMaxSizesCont(in, max_out_size, max_reserved_size);
-  }
-
-  template<typename backend>
-  inline void GetMaxSizes(TensorVector<backend> &in, size_t &max_out_size,
-                          size_t &max_reserved_size) {
-    if (in.IsContiguous()) {
-      GetMaxSizesCont(in, max_out_size, max_reserved_size);
-    } else {
-      GetMaxSizesNonCont(in, max_out_size, max_reserved_size);
-    }
-  }
-
-  template <typename W>
-  inline void FillStats(ProtectedStatsMap m, W &ws, std::string op_name) {
-    FillStats(m.first.get(), ws, std::move(op_name), m.second.get());
-  }
-
-  template <typename W>
-  inline void FillStats(ExecutorMetaMap &memory_stats, W &ws, std::string op_name,
-                        std::mutex &write_mutex) {
-    if (enable_memory_stats_) {
-        size_t out_size = 0;
-        size_t max_out_size = 0;
-        size_t reserved_size = 0;
-        size_t max_reserved_size = 0;
-        std::lock_guard<std::mutex> lck(write_mutex);
-        auto &stats = memory_stats[op_name];
-        stats.resize(ws.NumOutput(), {0, 0});
-
-        for (int i = 0; i < ws.NumOutput(); ++i) {
-          out_size = 0;
-          max_out_size = 0;
-          reserved_size = 0;
-          max_reserved_size = 0;
-          if (ws.template OutputIsType<CPUBackend>(i)) {
-            auto &out = ws.template Output<CPUBackend>(i);
-            out_size = out.nbytes();
-            reserved_size = out.capacity();
-            GetMaxSizes(out, max_out_size, max_reserved_size);
-          } else {
-            auto &out = ws.template Output<GPUBackend>(i);
-            out_size = out.nbytes();
-            reserved_size = out.capacity();
-            GetMaxSizes(out, max_out_size, max_reserved_size);
-          }
-          stats[i].real_size = std::max(out_size, stats[i].real_size);
-          stats[i].max_real_size = std::max(max_out_size, stats[i].max_real_size);
-          stats[i].reserved = std::max(reserved_size, stats[i].reserved);
-          stats[i].max_reserved = std::max(max_reserved_size, stats[i].max_reserved);
-        }
-      }
-  }
-
   void HandleError(const std::string &stage, const OpNode &op_node, const std::string &message) {
     // handle internal Operator names that start with underscore
     const auto &op_name =
@@ -307,10 +227,6 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   };
   ExecutionParams params_;
 
-  std::mutex cpu_memory_stats_mutex_;
-  std::mutex mixed_memory_stats_mutex_;
-  std::mutex gpu_memory_stats_mutex_;
-
   cudaEvent_t mixed_stage_event_ = {};
   cudaEvent_t gpu_stage_event_ = {};
 
@@ -368,7 +284,6 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
   std::vector<cudaEvent_t> mixed_callback_events_;
 
   std::atomic<bool> enable_memory_stats_;
-  ExecutorMetaMap cpu_memory_stats_, mixed_memory_stats_, gpu_memory_stats_;
 
   ExecutionPlan stages_;
 
