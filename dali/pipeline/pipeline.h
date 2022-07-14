@@ -33,8 +33,8 @@
 #include "dali/pipeline/executor/executor_base.h"
 #include "dali/pipeline/executor/queue_metadata.h"
 #include "dali/pipeline/graph/op_graph.h"
-#include "dali/pipeline/pipeline_output_desc.h"
 #include "dali/pipeline/operator/builtin/external_source.h"
+#include "dali/pipeline/pipeline_output_desc.h"
 
 
 namespace dali {

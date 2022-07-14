@@ -77,6 +77,6 @@ struct DLL_PUBLIC ExecutorConfig {
 };
 
 
-} // namespace dali
+}  // namespace dali
 
-#endif // DALI_PIPELINE_EXECUTOR_EXECUTOR_BASE_H_
+#endif  // DALI_PIPELINE_EXECUTOR_EXECUTOR_BASE_H_

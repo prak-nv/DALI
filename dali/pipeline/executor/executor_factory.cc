@@ -14,18 +14,19 @@
 
 #include "dali/pipeline/executor/executor_factory.h"
 
-#include "dali/pipeline/executor/executor.h"
-#include "dali/pipeline/executor/pipelined_executor.h"
 #include "dali/pipeline/executor/async_pipelined_executor.h"
 #include "dali/pipeline/executor/async_separated_pipelined_executor.h"
+#include "dali/pipeline/executor/executor.h"
+#include "dali/pipeline/executor/pipelined_executor.h"
 
 using namespace dali;
 
 template <typename... Ts>
 static std::unique_ptr<ExecutorBase> GetExecutorImpl(bool pipelined, bool separated, bool async,
-                                          Ts&&... args) {
+                                                     Ts&&... args) {
   if (async && separated && pipelined) {
-    return std::unique_ptr<ExecutorBase>{new AsyncSeparatedPipelinedExecutor(std::forward<Ts>(args)...)};
+    return std::unique_ptr<ExecutorBase>{
+        new AsyncSeparatedPipelinedExecutor(std::forward<Ts>(args)...)};
   } else if (async && !separated && pipelined) {
     return std::unique_ptr<ExecutorBase>{new AsyncPipelinedExecutor(std::forward<Ts>(args)...)};
   } else if (!async && separated && pipelined) {
@@ -42,6 +43,8 @@ static std::unique_ptr<ExecutorBase> GetExecutorImpl(bool pipelined, bool separa
   DALI_FAIL(error.str());
 }
 
-std::unique_ptr<ExecutorBase> dali::GetExecutor(ExecutorConfig config, ExecutionParams params, QueueSizes prefetch_queue_depth) {
-  return GetExecutorImpl(config.pipelined, config.separated, config.async, params, prefetch_queue_depth);
+std::unique_ptr<ExecutorBase> dali::GetExecutor(ExecutorConfig config, ExecutionParams params,
+                                                QueueSizes prefetch_queue_depth) {
+  return GetExecutorImpl(config.pipelined, config.separated, config.async, params,
+                         prefetch_queue_depth);
 }

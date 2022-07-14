@@ -17,12 +17,13 @@
 
 #include <memory>
 
-#include "dali/pipeline/executor/queue_metadata.h"
 #include "dali/pipeline/executor/executor_base.h"
+#include "dali/pipeline/executor/queue_metadata.h"
 
 namespace dali {
 
-std::unique_ptr<ExecutorBase> GetExecutor(ExecutorConfig config, ExecutionParams params, QueueSizes prefetch_queue_depth);
+std::unique_ptr<ExecutorBase> GetExecutor(ExecutorConfig config, ExecutionParams params,
+                                          QueueSizes prefetch_queue_depth);
 
 }  // namespace dali
 

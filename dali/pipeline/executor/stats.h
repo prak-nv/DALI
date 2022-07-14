@@ -35,6 +35,6 @@ struct DLL_PUBLIC ExecutorMeta {
 
 using ExecutorMetaMap = std::unordered_map<std::string, std::vector<ExecutorMeta>>;
 
-} // namespace dali
+}  // namespace dali
 
-#endif // DALI_PIPELINE_EXECUTOR_STATS_H_
+#endif  // DALI_PIPELINE_EXECUTOR_STATS_H_
