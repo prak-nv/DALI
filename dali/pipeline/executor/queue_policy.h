@@ -25,6 +25,7 @@
 
 #include "dali/core/cuda_error.h"
 #include "dali/pipeline/executor/queue_metadata.h"
+#include "dali/pipeline/executor/execution_stage.h"
 
 namespace dali {
 
@@ -153,6 +154,28 @@ struct UniformQueuePolicy {
     return ret;
   }
 
+  QueueIdxs AcquireIdxs(const Stage& stage) {
+    return AcquireIdxs(stage.GetOpType());
+  }
+
+  void ReleaseIdxs(const Stage & stage, QueueIdxs idxs) {
+    ReleaseIdxs(stage.GetOpType(), idxs);
+  }
+
+  bool AreValid(const Stage &s, QueueIdxs idxs) {
+    switch(s.GetOpType()) {
+      case OpType::GPU: return AreValid<OpType::GPU>(idxs);
+      case OpType::CPU: return AreValid<OpType::CPU>(idxs);
+      case OpType::MIXED: return AreValid<OpType::MIXED>(idxs);
+
+      default: {
+        assert(false && "Invalid OpType in AreValid!");
+      }
+    }
+    return false;
+  }
+
+
   void QueueOutputIdxs(QueueIdxs idxs, cudaStream_t = 0) {
     // We have to give up the elements to be occupied
     {
@@ -261,7 +284,7 @@ struct SeparateQueuePolicy {
       }
     }
   }
-
+  
   QueueIdxs AcquireIdxs(OpType stage) {
     QueueIdxs result;
     // We dine with the philosophers
@@ -321,6 +344,27 @@ struct SeparateQueuePolicy {
       prev_stage = PreviousStage(prev_stage);
     }
     return ret;
+  }
+
+  QueueIdxs AcquireIdxs(const Stage& stage) {
+    return AcquireIdxs(stage.GetOpType());
+  }
+
+  void ReleaseIdxs(const Stage & stage, QueueIdxs idxs) {
+    ReleaseIdxs(stage.GetOpType(), idxs);
+  }
+
+  bool AreValid(const Stage &s, QueueIdxs idxs) {
+    switch(s.GetOpType()) {
+      case OpType::GPU: return AreValid<OpType::GPU>(idxs);
+      case OpType::CPU: return AreValid<OpType::CPU>(idxs);
+      case OpType::MIXED: return AreValid<OpType::MIXED>(idxs);
+
+      default: {
+        assert(false && "Invalid OpType in AreValid!");
+      }
+    }
+    return false;
   }
 
   void QueueOutputIdxs(QueueIdxs idxs, cudaStream_t gpu_op_stream) {
@@ -448,7 +492,6 @@ struct SeparateQueuePolicy {
   std::queue<OutputIdxs> ready_output_queue_;
   std::queue<OutputIdxs> in_use_queue_;
 };
-
 
 }  // namespace dali
 
