@@ -44,8 +44,6 @@ class DLL_PUBLIC PipelinedExecutorImpl : public Executor<QueuePolicy> {
 
   DLL_PUBLIC ~PipelinedExecutorImpl() override = default;
 
-  DLL_PUBLIC void Build(OpGraph *graph, vector<string> output_names) override;
-
   DISABLE_COPY_MOVE_ASSIGN(PipelinedExecutorImpl);
 
  protected:
@@ -70,12 +68,6 @@ class DLL_PUBLIC PipelinedExecutorImpl : public Executor<QueuePolicy> {
   using Executor<QueuePolicy>::params_;
   using Executor<QueuePolicy>::stage_queue_depths_;
 };
-
-template <typename QueuePolicy>
-void PipelinedExecutorImpl<QueuePolicy>::Build(OpGraph *graph,
-                                                                vector<string> output_names) {
-  Executor<QueuePolicy>::Build(graph, output_names);
-}
 
 template <typename QueuePolicy>
 void PipelinedExecutorImpl<QueuePolicy>::SetupOutputInfo(const OpGraph &graph) {
