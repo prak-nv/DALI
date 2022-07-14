@@ -26,6 +26,7 @@
 
 namespace dali {
 
+// TODO(prak) rename
 struct DLL_PUBLIC ExecutorMeta {
   std::size_t real_size;
   std::size_t max_real_size;
