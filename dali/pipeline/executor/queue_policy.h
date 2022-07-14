@@ -28,6 +28,36 @@
 
 namespace dali {
 
+static OpType PreviousStage(OpType op) {
+  switch (op) {
+    case OpType::MIXED:
+      return OpType::CPU;
+    case OpType::GPU:
+      return OpType::MIXED;
+    default:
+      return static_cast<OpType>(-1);  // No previous OpType
+  }
+}
+
+static bool HasPreviousStage(OpType op) {
+  return op != OpType::CPU;
+}
+
+static OpType NextStage(OpType op) {
+  switch (op) {
+    case OpType::CPU:
+      return OpType::MIXED;
+    case OpType::MIXED:
+      return OpType::GPU;
+    default:
+      return static_cast<OpType>(-1);  // No next OpType
+  }
+}
+
+static bool HasNextStage(OpType op) {
+  return op != OpType::GPU;
+}
+
 // Policy that passes Queueing/Buffering indexes between stages, handling required synchronization
 // struct QueuePolicy {
 //   // Return sizes of stage queues based of Pipeline arguments
