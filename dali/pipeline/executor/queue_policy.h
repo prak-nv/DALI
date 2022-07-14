@@ -176,7 +176,7 @@ struct UniformQueuePolicy {
   }
 
 
-  void QueueOutputIdxs(QueueIdxs idxs, cudaStream_t = 0) {
+  void QueueOutputIdxs(QueueIdxs idxs) {
     // We have to give up the elements to be occupied
     {
       std::lock_guard<std::mutex> lock(ready_mutex_);
@@ -367,7 +367,7 @@ struct SeparateQueuePolicy {
     return false;
   }
 
-  void QueueOutputIdxs(QueueIdxs idxs, cudaStream_t gpu_op_stream) {
+  void QueueOutputIdxs(QueueIdxs idxs) {
     {
       std::lock_guard<std::mutex> ready_output_lock(ready_output_mutex_);
       ready_output_queue_.push({idxs[OpType::CPU], idxs[OpType::MIXED], idxs[OpType::GPU]});

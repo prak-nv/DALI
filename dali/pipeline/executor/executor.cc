@@ -213,7 +213,7 @@ void Executor<QueuePolicy>::RunGPUImpl() {
   // short path for pure CPU pipeline
   if (params_.device_id == CPU_ONLY_DEVICE_ID) {
     // We do not release, but handle to used outputs
-    QueuePolicy::QueueOutputIdxs(gpu_idxs, gpu_op_stream_);
+    QueuePolicy::QueueOutputIdxs(gpu_idxs);
     return;
   }
   DeviceGuard g(params_.device_id);
@@ -282,7 +282,7 @@ void Executor<QueuePolicy>::RunGPUImpl() {
   CUDA_CALL(cudaEventRecord(gpu_stage_event_, gpu_op_stream_));
 
   // We do not release, but handle to used outputs
-  QueuePolicy::QueueOutputIdxs(gpu_idxs, gpu_op_stream_);
+  QueuePolicy::QueueOutputIdxs(gpu_idxs);
 }
 
 template <typename QueuePolicy>
