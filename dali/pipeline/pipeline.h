@@ -94,9 +94,15 @@ class DLL_PUBLIC Pipeline {
                              bool set_affinity = false, int max_num_stream = -1,
                              int default_cuda_stream_priority = 0)
       : built_(false), executor_config_({pipelined_execution, async_execution, false}) {
-    Init(max_batch_size, num_threads, device_id, seed, pipelined_execution,
-         executor_config_.separated, async_execution, bytes_per_sample_hint, set_affinity,
-         max_num_stream, default_cuda_stream_priority, QueueSizes{prefetch_queue_depth});
+    ExecutionParams params;
+    params.max_batch_size = max_batch_size;
+    params.num_thread = num_threads;
+    params.device_id = device_id;
+    params.bytes_per_sample_hint = bytes_per_sample_hint;
+    params.set_affinity = set_affinity;
+    params.max_num_stream = max_num_stream;
+    params.default_cuda_stream_priority = default_cuda_stream_priority;
+    Init(params, seed, QueueSizes{prefetch_queue_depth});
   }
   /**
    * @brief Creates a pipeline that will produce batches of size `batch_size`,
@@ -120,7 +126,7 @@ class DLL_PUBLIC Pipeline {
   DLL_PUBLIC inline Pipeline(ExecutionParams params, ExecutorConfig config, int64_t seed = -1,
                              int prefetch_queue_depth = 2)
       : built_(false), executor_config_(config) {
-    Init(params, config, seed, QueueSizes{prefetch_queue_depth});
+    Init(params, seed, QueueSizes{prefetch_queue_depth});
   }
 
   DLL_PUBLIC [[deprecated]] Pipeline(const string &serialized_pipe, int max_batch_size = -1, int num_threads = -1,

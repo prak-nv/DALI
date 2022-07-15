@@ -96,20 +96,21 @@ Pipeline::Pipeline(const string &serialized_pipe, int batch_size, int num_thread
   dali_proto::PipelineDef def;
   DALI_ENFORCE(DeserializePipeline(serialized_pipe, def), "Error parsing serialized pipeline.");
 
-    // If not given, take parameters from the serialized pipeline
-  params_.max_batch_size = batch_size == -1 ? def.batch_size() : batch_size;
+  ExecutorParams params;
+  // If not given, take parameters from the serialized pipeline
+  params.max_batch_size = batch_size == -1 ? def.batch_size() : batch_size;
   DALI_ENFORCE(params_.max_batch_size > 0,
                make_string("You are trying to create a pipeline with an incorrect batch size (",
                            params_.max_batch_size,
                            "). Please set the batch_size argument "
                            "to a positive integer."));
 
-  params_.device_id = device_id == -1 ? def.device_id() : device_id;
+  params.device_id = device_id == -1 ? def.device_id() : device_id;
   DALI_ENFORCE(params_.device_id >= 0 || params_.device_id == CPU_ONLY_DEVICE_ID,
                make_string("You are trying to create a pipeline with a negative device id (",
                            params_.device_id, "). Please set a correct device_id."));
 
-  params_.num_thread = num_threads == -1 ? static_cast<int>(def.num_threads()) : num_threads;
+  params.num_thread = num_threads == -1 ? static_cast<int>(def.num_threads()) : num_threads;
   DALI_ENFORCE(params_.num_thread > 0,
                make_string("You are trying to create a pipeline with an incorrect number "
                            "of worker threads (",
@@ -118,10 +119,12 @@ Pipeline::Pipeline(const string &serialized_pipe, int batch_size, int num_thread
                            "num_threads argument to a positive integer."));
   seed = seed == -1 ? def.seed() : seed;
 
-  Init(params_.max_batch_size, params_.num_thread, params_.device_id, seed,
-       executor_config_.pipelined, executor_config_.separated, executor_config_.async,
-       bytes_per_sample_hint, set_affinity, max_num_stream, default_cuda_stream_priority,
-       QueueSizes{prefetch_queue_depth});
+  params.bytes_per_sample_hint = bytes_per_sample_hint;
+  params.set_affinity = set_affinity;
+  params.max_num_stream = max_num_stream;
+  params.default_cuda_stream_priority = default_cuda_stream_priority;
+
+  Init(params, seed, QueueSizes{prefetch_queue_depth});
 
   // from serialized pipeline, construct new pipeline
   // All external inputs
@@ -172,7 +175,7 @@ Pipeline::Pipeline(const string &serialized_pipe, ExecutionParams params, Execut
                            "num_threads argument to a positive integer."));
   seed = seed == -1 ? def.seed() : seed;
 
-  Init(params, config, seed, QueueSizes{prefetch_queue_depth});
+  Init(params, seed, QueueSizes{prefetch_queue_depth});
 
   // from serialized pipeline, construct new pipeline
   // All external inputs
@@ -223,34 +226,9 @@ static void VerifyPriority(int device_id, int default_cuda_stream_priority) {
                    std::to_string(highest_cuda_stream_priority) + "`");
 }
 
-void Pipeline::Init(int max_batch_size, int num_threads, int device_id, int64_t seed,
-                    bool pipelined_execution, bool separated_execution, bool async_execution,
-                    size_t bytes_per_sample_hint, bool set_affinity, int max_num_stream,
-                    int default_cuda_stream_priority, QueueSizes prefetch_queue_depth) {
-  params_.max_batch_size = max_batch_size;
-  params_.num_thread = num_threads;
-  params_.device_id = device_id;
-  params_.bytes_per_sample_hint = bytes_per_sample_hint;
-  params_.set_affinity = set_affinity;
-  params_.max_num_stream = max_num_stream;
-  params_.default_cuda_stream_priority = default_cuda_stream_priority;
-  this->prefetch_queue_depth_ = prefetch_queue_depth;
-  DALI_ENFORCE(params_.max_batch_size > 0, "Max batch size must be greater than 0");
-
-  executor_config_.pipelined = pipelined_execution;
-  executor_config_.separated = separated_execution;
-  executor_config_.async = async_execution;
-
-  VerifyPriority(device_id, default_cuda_stream_priority);
-
-  InitSeed(seed);
-}
-
-void Pipeline::Init(ExecutionParams params, ExecutorConfig config, int64_t seed,
-                    QueueSizes prefetch_queue_depth) {
+void Pipeline::Init(ExecutionParams params, int64_t seed, QueueSizes prefetch_queue_depth) {
   params_ = params;
   DALI_ENFORCE(params.max_batch_size > 0, "Max batch size must be greater than 0");
-  executor_config_ = config;
 
   VerifyPriority(params.device_id, params.default_cuda_stream_priority);
 
@@ -284,7 +262,6 @@ int Pipeline::AddOperator(const OpSpec &spec, int logical_id) {
 int Pipeline::AddOperator(const OpSpec &spec) {
   return AddOperator(spec, GetNextLogicalId());
 }
-
 
 int Pipeline::AddOperator(const OpSpec &const_spec, const std::string& inst_name, int logical_id) {
   DALI_ENFORCE(!built_, "Alterations to the pipeline after "
