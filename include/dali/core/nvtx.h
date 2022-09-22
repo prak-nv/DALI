@@ -85,7 +85,9 @@ struct TimeRange : RangeBase {
   }
 
  private:
+#if NVTX_ENABLED
   bool started = false;
+#endif
 };
 
 struct DomainTimeRange : RangeBase {
