@@ -233,6 +233,22 @@ EagerOperator<Backend>::Run(
   }
 }
 
+template <typename WS_>
+void set_stream(WS_& ws, CUDAStreamLease& cuda_stream) {
+   ws.set_stream(cuda_stream);
+}
+
+template <typename WS_>
+void synchronize(WS_& ws, CUDAStreamLease& cuda_stream) {
+   CUDA_CALL(cudaStreamSynchronize(cuda_stream));
+}
+
+void set_stream([[maybe_unused]]HostWorkspace& ws, [[maybe_unused]]CUDAStreamLease& cuda_stream) {
+}
+
+void synchronize([[maybe_unused]]HostWorkspace& ws, [[maybe_unused]]CUDAStreamLease& cuda_stream) {
+}
+
 template <typename Backend>
 std::vector<std::shared_ptr<TensorList<typename EagerOperator<Backend>::OutBackend>>>
 EagerOperator<Backend>::Run(
@@ -243,14 +259,17 @@ EagerOperator<Backend>::Run(
     DomainTimeRange tr("[DALI][" + std::string(Backend2Types<Backend>::name) + " op] " + name_,
                        DomainTimeRange::knvGreen);
     ws_.Clear();
-    ws_.set_stream(cuda_stream);
+    
+    set_stream(ws_ ,cuda_stream);
     auto output = RunImpl(inputs, kwargs, batch_size);
-    CUDA_CALL(cudaStreamSynchronize(cuda_stream));
+    //CUDA_CALL(cudaStreamSynchronize(cuda_stream));
+    synchronize(ws_, cuda_stream);
     return output;
   } catch (std::exception &e) {
     throw std::runtime_error(ExtendErrorMsg(Backend2Types<Backend>::name, e.what()));
   }
 }
+
 
 template <typename Backend>
 std::vector<std::shared_ptr<TensorList<typename EagerOperator<Backend>::OutBackend>>>
