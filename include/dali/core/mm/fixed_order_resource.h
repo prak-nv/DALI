@@ -34,7 +34,7 @@ namespace mm {
  *       - it does not attempt to access the memory in order other than specified
  */
 template <typename MemoryKind, typename Upstream = async_memory_resource<MemoryKind> >
-class fixed_order_resource final : public memory_resource<MemoryKind> {
+class DLL_PUBLIC fixed_order_resource final : public memory_resource<MemoryKind> {
  public:
   fixed_order_resource() = default;
 
